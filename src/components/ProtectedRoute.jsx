@@ -1,18 +1,20 @@
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Box, CircularProgress, Typography } from "@mui/material";
 
 const ProtectedRoute = ({ children }) => {
-  const navigate = useNavigate();
-  const [isVerified, setIsVerified] = useState(false); // ✅ Trạng thái xác thực
+  const location = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    let isMounted = true;
-
-    const verifyToken = async () => {
+    const checkAuth = async () => {
       if (!token) {
-        navigate("/login", { replace: true });
+        setIsAuthenticated(false);
+        setIsLoading(false);
         return;
       }
 
@@ -20,44 +22,46 @@ const ProtectedRoute = ({ children }) => {
         await axios.get("http://localhost:5000/api/auth/verify", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (isMounted) setIsVerified(true); // ✅ Token hợp lệ → cho phép hiển thị
+        setIsAuthenticated(true);
       } catch (err) {
+        // Token sai → thử refresh
         if (err.response?.status === 401) {
           const refreshToken = localStorage.getItem("refreshToken");
           if (refreshToken) {
             try {
-              const refreshResponse = await axios.post(
-                "http://localhost:5000/api/auth/refresh",
-                { refreshToken },
-                { headers: { "Content-Type": "application/json" } }
-              );
-              localStorage.setItem("token", refreshResponse.data.token);
-              if (isMounted) setIsVerified(true);
-              return;
-            } catch (refreshErr) {
-              console.error("Refresh token failed:", refreshErr);
+              const res = await axios.post("http://localhost:5000/api/auth/refresh", { refreshToken });
+              localStorage.setItem("token", res.data.token);
+              setIsAuthenticated(true);
+            } catch {
+              localStorage.clear();
+              setIsAuthenticated(false);
             }
+          } else {
+            localStorage.clear();
+            setIsAuthenticated(false);
           }
-          localStorage.clear();
-          if (isMounted) navigate("/login", { replace: true });
-        } else if (err.code === "ECONNREFUSED") {
-          console.warn("Server not responding — skip verify");
-          if (isMounted) setIsVerified(true); // ✅ Cho phép tạm vào dashboard khi server verify off
+        } else {
+          setIsAuthenticated(true); // Server chết vẫn cho vào tạm
         }
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    verifyToken();
+    checkAuth();
+  }, [token]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate, token]);
+  if (isLoading) {
+    return (
+      <Box sx={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#141b2d" }}>
+        <CircularProgress color="primary" />
+        <Typography ml={2} color="white">Đang tải...</Typography>
+      </Box>
+    );
+  }
 
-  // ✅ Tránh return null khi chưa xác minh xong
-  if (!isVerified) {
-    return <div style={{ textAlign: "center", marginTop: "20%" }}>Đang kiểm tra xác thực...</div>;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return children;

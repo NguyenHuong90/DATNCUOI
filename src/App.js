@@ -1,177 +1,64 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Topbar from "./scenes/global/Topbar";
-import Sidebar from "./scenes/global/Sidebar";
-import Dashboard from "./scenes/dashboard"; // <-- đúng nếu Dashboard.jsx có export default
-import Team from "./scenes/team";
-import Bar from "./scenes/bar";
-import Form from "./scenes/form";
-import Line from "./scenes/line";
-import Pie from "./scenes/pie";
-import Geography from "./scenes/geography";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { ColorModeContext, useMode } from "./theme";
-import Calendar from "./scenes/calendar/calendar";
-import Login from "./scenes/login/Login";
-import LightControl from "./scenes/lightcontrol/LightControl";
-import ProtectedRoute from "./components/ProtectedRoute";
 import { LightStateProvider } from "./hooks/useLightState";
+
+import Topbar from "./scenes/global/Topbar";
+import Sidebar from "./scenes/global/Sidebar";
+
+import Login from "./scenes/login/Login";
+import Dashboard from "./scenes/dashboard";
+import Team from "./scenes/team";
+import Form from "./scenes/form";
+import Bar from "./scenes/bar";
+import Line from "./scenes/line";
+import Pie from "./scenes/pie";
+import Calendar from "./scenes/calendar/calendar";
+import Geography from "./scenes/geography";
+import LightControl from "./scenes/lightcontrol/LightControl";
 import History from "./scenes/history/History";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   const [theme, colorMode] = useMode();
+
+  const PrivateLayout = () => (
+    <div className="app" style={{ display: "flex", height: "100vh" }}>
+      <Sidebar />
+      <main className="content" style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+        <Topbar />
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/team" element={<Team />} />
+          <Route path="/form" element={<Form />} />
+          <Route path="/bar" element={<Bar />} />
+          <Route path="/pie" element={<Pie />} />
+          <Route path="/line" element={<Line />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/geography" element={<Geography />} />
+          <Route path="/light-control" element={<LightControl />} />
+          <Route path="/history" element={<History />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
 
   return (
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <LightStateProvider>
-          <div style={{ display: "flex" }}>
-            <Routes>
-             <Route path="/login" element={<Login />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Dashboard />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/team"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Team />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/form"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Form />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/bar"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Bar />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/pie"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Pie />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/line"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Line />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/calendar"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Calendar />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/geography"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <Geography />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/light-control"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <LightControl />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/history"
-                element={
-                  <ProtectedRoute>
-                    <div className="app">
-                      <Sidebar />
-                      <main className="content">
-                        <Topbar />
-                        <History />
-                      </main>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </div>
+          <Routes>
+            {/* Luôn vào login trước */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+
+            {/* Tất cả các trang cần đăng nhập */}
+            <Route path="/*" element={<ProtectedRoute><PrivateLayout /></ProtectedRoute>} />
+          </Routes>
         </LightStateProvider>
       </ThemeProvider>
     </ColorModeContext.Provider>
