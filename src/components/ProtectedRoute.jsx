@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Box, CircularProgress, Typography } from "@mui/material";
 
+// BIẾN MÔI TRƯỜNG – HOẠT ĐỘNG CẢ LOCAL + VERCEL
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
@@ -19,17 +22,16 @@ const ProtectedRoute = ({ children }) => {
       }
 
       try {
-        await axios.get("http://localhost:5000/api/auth/verify", {
+        await axios.get(`${API_BASE}/api/auth/verify`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setIsAuthenticated(true);
       } catch (err) {
-        // Token sai → thử refresh
         if (err.response?.status === 401) {
           const refreshToken = localStorage.getItem("refreshToken");
           if (refreshToken) {
             try {
-              const res = await axios.post("http://localhost:5000/api/auth/refresh", { refreshToken });
+              const res = await axios.post(`${API_BASE}/api/auth/refresh`, { refreshToken });
               localStorage.setItem("token", res.data.token);
               setIsAuthenticated(true);
             } catch {
@@ -41,7 +43,7 @@ const ProtectedRoute = ({ children }) => {
             setIsAuthenticated(false);
           }
         } else {
-          setIsAuthenticated(true); // Server chết vẫn cho vào tạm
+          setIsAuthenticated(true);
         }
       } finally {
         setIsLoading(false);

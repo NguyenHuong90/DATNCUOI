@@ -31,9 +31,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 
-// ĐÃ THAY ĐƯỜNG DẪN – HOẠT ĐỘNG CẢ LOCAL + VERCEL
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
 const LightControl = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
@@ -61,17 +58,23 @@ const LightControl = () => {
     }
   }, [error]);
 
+  // ĐÃ SỬA HOÀN CHỈNH TẠI ĐÂY – BẬT ĐÈN = 100% LUÔN + SLIDER NHẢY ĐÚNG
   const handleToggleLight = useCallback(async (nodeId) => {
     const current = lightStates[nodeId];
     const isCurrentlyOn = current?.lamp_state === 'ON';
 
     try {
       if (isCurrentlyOn) {
+        // TẮT ĐÈN → dim = 0, slider về 0
         await updateLightState(nodeId, { lamp_state: 'OFF', lamp_dim: 0 });
         setLocalBrightness((prev) => ({ ...prev, [nodeId]: 0 }));
       } else {
-        const targetBrightness = 100;
-        await updateLightState(nodeId, { lamp_state: 'ON', lamp_dim: targetBrightness });
+        // BẬT ĐÈN → bật 100% luôn + slider nhảy về 100%
+        const targetBrightness = 100; // ← Có thể đổi thành 80, 90... nếu muốn
+        await updateLightState(nodeId, { 
+          lamp_state: 'ON', 
+          lamp_dim: targetBrightness 
+        });
         setLocalBrightness((prev) => ({ ...prev, [nodeId]: targetBrightness }));
       }
       await syncLightStatesWithSchedule(new Date());
@@ -134,12 +137,11 @@ const LightControl = () => {
     }
   }, [newNodeId, newGwId, newLat, newLng, lightStates, addLight, syncLightStatesWithSchedule]);
 
-  // ĐÃ SỬA ĐƯỜNG DẪN XÓA ĐÈN
   const handleDeleteLight = useCallback(async (nodeId) => {
     if (!window.confirm(`Xóa đèn ${nodeId}?`)) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE}/api/lamp/delete`, {
+      await axios.delete(`http://localhost:5000/api/lamp/delete`, {
         headers: { Authorization: `Bearer ${token}` },
         data: { gw_id: lightStates[nodeId].gw_id, node_id: nodeId },
       });
@@ -169,6 +171,7 @@ const LightControl = () => {
     <Box m="20px">
       <Header title="ĐIỀU KHIỂN ĐÈN" subtitle="Quản lý trạng thái, độ sáng và vị trí bóng đèn" />
 
+      {/* THÊM ĐÈN */}
       <Fade in={true} timeout={600}>
         <Card sx={{ mb: 3, bgcolor: colors.primary[400], border: `1px solid ${colors.grey[700]}`, borderRadius: 3 }}>
           <CardContent>
@@ -195,7 +198,7 @@ const LightControl = () => {
           Chưa có bóng đèn nào. Hãy thêm đèn mới ở trên.
         </Alert>
       ) : (
-        <Box sx={{ maxHeight: '70vh', overflowY: 'auto', pr: 1 }}>
+        <Box sx={{ maxHeight: '70vh', overflowY: 'auto', pr: 1, '&::-webkit-scrollbar': { width: 8 }, '&::-webkit-scrollbar-track': { background: colors.grey[800] }, '&::-webkit-scrollbar-thumb': { background: colors.grey[600], borderRadius: 4 } }}>
           {Object.keys(lightStates).map((nodeId) => {
             const light = lightStates[nodeId];
             const isOn = light.lamp_state === 'ON';
@@ -203,14 +206,14 @@ const LightControl = () => {
 
             return (
               <Fade in={true} key={nodeId} timeout={300}>
-                <Card sx={{ mb: 2, bgcolor: colors.grey[900], border: `1px solid ${colors.grey[700]}`, borderRadius: 3, '&:hover': { borderColor: colors.greenAccent[500] } }}>
+                <Card sx={{ mb: 2, bgcolor: colors.grey[900], border: `1px solid ${colors.grey[700]}`, borderRadius: 3, transition: 'all 0.2s', '&:hover': { borderColor: colors.greenAccent[500], boxShadow: 4 } }}>
                   <CardContent>
                     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2}>
                       <Box sx={{ flex: 1 }}>
                         <Stack direction="row" alignItems="center" spacing={1} mb={1}>
                           {isOn ? <LightbulbIcon sx={{ color: colors.greenAccent[500], fontSize: 28 }} /> : <LightbulbOutlinedIcon sx={{ color: colors.grey[500], fontSize: 28 }} />}
                           <Typography variant="h6" fontWeight={600} color={colors.grey[100]}>Đèn {nodeId}</Typography>
-                          <Chip label={isOn ? "BẬT" : "TẮT"} size="small" sx={{ bgcolor: isOn ? colors.greenAccent[600] : colors.redAccent[600], color: 'white' }} />
+                          <Chip label={isOn ? "BẬT" : "TẮT"} size="small" sx={{ bgcolor: isOn ? colors.greenAccent[600] : colors.redAccent[600], color: 'white', fontWeight: 600, height: 24 }} />
                         </Stack>
                         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, fontSize: '0.875rem' }}>
                           <Typography color={colors.grey[300]}>Cổng: <strong>{light.gw_id}</strong></Typography>
@@ -232,7 +235,13 @@ const LightControl = () => {
                           min={0}
                           max={100}
                           disabled={!isOn}
-                          sx={{ color: colors.greenAccent[500] }}
+                          sx={{
+                            color: colors.greenAccent[500],
+                            '& .MuiSlider-thumb': { bgcolor: colors.greenAccent[500] },
+                            '& .MuiSlider-track': { bgcolor: colors.greenAccent[500] },
+                            '& .MuiSlider-rail': { bgcolor: colors.grey[700] },
+                            '& .MuiSlider-thumb.Mui-disabled': { bgcolor: colors.grey[600] },
+                          }}
                         />
                         <Typography variant="body2" color={colors.grey[100]} fontWeight={600}>{brightness}%</Typography>
                       </Box>
@@ -242,7 +251,11 @@ const LightControl = () => {
                           <Button
                             variant="contained"
                             size="small"
-                            sx={{ bgcolor: isOn ? colors.redAccent[600] : colors.greenAccent[600], minWidth: 80 }}
+                            sx={{
+                              bgcolor: isOn ? colors.redAccent[600] : colors.greenAccent[600],
+                              '&:hover': { bgcolor: isOn ? colors.redAccent[700] : colors.greenAccent[700] },
+                              minWidth: 80,
+                            }}
                             onClick={() => handleToggleLight(nodeId)}
                           >
                             {isOn ? 'TẮT' : 'BẬT'}
@@ -250,13 +263,13 @@ const LightControl = () => {
                         </Tooltip>
 
                         <Tooltip title="Sửa vị trí">
-                          <IconButton size="small" sx={{ bgcolor: colors.primary[600] }} onClick={() => { setSelectedLight({ node_id: nodeId, lat: light.lat, lng: light.lng }); setOpenEditDialog(true); }}>
+                          <IconButton size="small" sx={{ bgcolor: colors.primary[600], color: colors.grey[100], '&:hover': { bgcolor: colors.primary[700] } }} onClick={() => { setSelectedLight({ node_id: nodeId, lat: light.lat, lng: light.lng }); setOpenEditDialog(true); }}>
                             <EditLocationIcon />
                           </IconButton>
                         </Tooltip>
 
                         <Tooltip title="Xóa đèn">
-                          <IconButton size="small" sx={{ bgcolor: colors.redAccent[600], color: 'white' }} onClick={() => handleDeleteLight(nodeId)}>
+                          <IconButton size="small" sx={{ bgcolor: colors.redAccent[600], color: 'white', '&:hover': { bgcolor: colors.redAccent[700] } }} onClick={() => handleDeleteLight(nodeId)}>
                             <DeleteIcon />
                           </IconButton>
                         </Tooltip>
@@ -270,20 +283,29 @@ const LightControl = () => {
         </Box>
       )}
 
+      {/* DIALOG SỬA VỊ TRÍ */}
       <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: colors.primary[600], color: '#fff' }}>Sửa vị trí đèn</DialogTitle>
+        <DialogTitle sx={{ bgcolor: colors.primary[600], color: '#fff' }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <EditLocationIcon />
+            <Typography variant="h6" fontWeight={700}>Sửa vị trí đèn</Typography>
+          </Stack>
+        </DialogTitle>
         <DialogContent sx={{ bgcolor: colors.primary[400], pt: 3 }}>
           {selectedLight && (
             <Stack spacing={3}>
               <Typography color={colors.grey[100]} fontWeight={600}>Đèn: {selectedLight.node_id}</Typography>
-              <TextField label="Vĩ độ" value={selectedLight.lat || ''} onChange={e => setSelectedLight({ ...selectedLight, lat: e.target.value })} type="number" inputProps={{ step: 0.0001 }} fullWidth />
-              <TextField label="Kinh độ" value={selectedLight.lng || ''} onChange={e => setSelectedLight({ ...selectedLight, lng: e.target.value })} type="number" inputProps={{ step: 0.0001 }} fullWidth />
+              <TextField label="Vĩ độ (-90 đến 90)" value={selectedLight.lat || ''} onChange={e => setSelectedLight({ ...selectedLight, lat: e.target.value })} type="number" inputProps={{ step: 0.0001 }} fullWidth size="small" />
+              <TextField label="Kinh độ (-180 đến 180)" value={selectedLight.lng || ''} onChange={e => setSelectedLight({ ...selectedLight, lng: e.target.value })} type="number" inputProps={{ step: 0.0001 }} fullWidth size="small" />
+              <Alert severity="info" sx={{ fontSize: '0.875rem' }}>Hoặc chuyển sang <strong>Bản đồ</strong> để chọn vị trí trực tiếp.</Alert>
             </Stack>
           )}
         </DialogContent>
-        <DialogActions sx={{ bgcolor: colors.primary[400] }}>
+        <DialogActions sx={{ bgcolor: colors.primary[400], p: 2 }}>
           <Button onClick={() => setOpenEditDialog(false)}>Hủy</Button>
-          <Button variant="contained" onClick={handleEditLight} disabled={!selectedLight?.lat || !selectedLight?.lng}>Lưu</Button>
+          <Button variant="contained" sx={{ bgcolor: colors.greenAccent[600], '&:hover': { bgcolor: colors.greenAccent[700] } }} onClick={handleEditLight} disabled={!selectedLight?.lat || !selectedLight?.lng}>
+            Lưu
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

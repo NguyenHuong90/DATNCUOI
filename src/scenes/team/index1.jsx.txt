@@ -41,8 +41,6 @@ import axios from "axios";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { styled } from "@mui/material/styles";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
 // Styled components
 const ActionCard = styled(Paper)(({ theme }) => ({
   background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
@@ -108,7 +106,7 @@ const Team = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
-        const res = await axios.get(`${API_BASE}/api/auth/users?page=1&limit=100`, {
+        const res = await axios.get("http://localhost:5000/api/auth/users?page=1&limit=100", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setTeamData(res.data.users || []);
@@ -138,7 +136,7 @@ const Team = () => {
       const token = localStorage.getItem("token");
       await Promise.all(
         selectionModel.map(id => 
-          axios.delete(`${API_BASE}/api/auth/users/${id}`, {
+          axios.delete(`http://localhost:5000/api/auth/users/${id}`, {
             headers: { Authorization: `Bearer ${token}` }
           })
         )
@@ -169,7 +167,7 @@ const Team = () => {
     try {
       const token = localStorage.getItem("token");
       const { id, ...data } = values;
-      await axios.put(`${API_BASE}/api/auth/users/${id}`, data, {
+      await axios.put(`http://localhost:5000/api/auth/users/${id}`, data, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTeamData(prev => prev.map(u => u._id === id ? { ...u, ...data } : u));
@@ -190,7 +188,7 @@ const Team = () => {
     try {
       const token = localStorage.getItem("token");
       const { confirmPassword, ...data } = values;
-      const res = await axios.post(`${API_BASE}/api/auth/register`, data, {
+      const res = await axios.post("http://localhost:5000/api/auth/register", data, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTeamData(prev => [...prev, res.data.user]);
