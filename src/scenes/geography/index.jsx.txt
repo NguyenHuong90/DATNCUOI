@@ -1,0 +1,601 @@
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import {
+  Box,
+  useTheme,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Card,
+  CardContent,
+  Chip,
+} from "@mui/material";
+import Header from "../../components/Header";
+import { tokens } from "../../theme";
+import { useLightState } from "../../hooks/useLightState";
+import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
+import L from "leaflet";
+
+// ICONS
+import WbSunnyIcon from "@mui/icons-material/WbSunny";
+import CloudIcon from "@mui/icons-material/Cloud";
+import OpacityIcon from "@mui/icons-material/Opacity";
+import FlashOnIcon from "@mui/icons-material/FlashOn";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
+
+const MapController = ({ bounds }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds && bounds[0][0] !== bounds[1][0]) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [bounds, map]);
+  return null;
+};
+
+const Geography = ({ isDashboard = false }) => {
+  const theme = useTheme();
+  const colors = useMemo(() => {
+    const c = tokens(theme.palette.mode);
+    return {
+      ...c,
+      primary: { ...c.primary, 400: c.primary?.[400] || "#1F2A40" },
+      grey: { ...c.grey, 100: c.grey?.[100] || "#e0e0e0", 600: c.grey?.[600] || "#525252" },
+      greenAccent: { ...c.greenAccent, 500: c.greenAccent?.[500] || "#4cceac", 600: c.greenAccent?.[600] || "#3da58a" },
+      redAccent: { ...c.redAccent, 500: c.redAccent?.[500] || "#db4f4a" },
+      orangeAccent: { 400: c.orangeAccent?.[400] || "#ff9800" },
+      blueAccent: { 400: c.blueAccent?.[400] || "#42a5f5" },
+    };
+  }, [theme.palette.mode]);
+
+  const { lightStates, updateLightState } = useLightState();
+  const mapRef = useRef(null);
+  const [weatherData, setWeatherData] = useState({});
+  const [error, setError] = useState("");
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedLight, setSelectedLight] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: "node_id", direction: "asc" });
+
+  const createCustomIcon = (lamp_state) =>
+    new L.Icon({
+      iconUrl:
+        lamp_state === "ON"
+          ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png"
+          : "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      shadowSize: [41, 41],
+    });
+
+  const bounds = useMemo(() => {
+    const validLights = Object.entries(lightStates).filter(
+      ([_, light]) => typeof light.lat === "number" && typeof light.lng === "number"
+    );
+    if (validLights.length === 0) {
+      return [[10.7769, 106.7009], [10.7769, 106.7009]]; // ĐÃ SỬA: esl7009 → 7009
+    }
+    const lats = validLights.map(([_, light]) => light.lat);
+    const lngs = validLights.map(([_, light]) => light.lng);
+    return [
+      [Math.min(...lats) - 0.01, Math.min(...lngs) - 0.01],
+      [Math.max(...lats) + 0.01, Math.max(...lngs) + 0.01],
+    ];
+  }, [lightStates]);
+
+  // LẤY DỮ LIỆU THỜI TIẾT
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const newWeatherData = {};
+        const validLights = Object.entries(lightStates).filter(
+          ([_, light]) => typeof light.lat === "number" && typeof light.lng === "number"
+        );
+
+        for (const [lightId, light] of validLights) {
+          const response = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${light.lat}&longitude=${light.lng}&daily=sunset,precipitation_probability_max,precipitation_sum&forecast_days=3&timezone=Asia/Bangkok`
+          );
+          if (!response.ok) throw new Error(`Lỗi HTTP ${response.status}`);
+          const data = await response.json();
+
+          newWeatherData[lightId] = {
+            forecast: data.daily?.time?.map((date, i) => ({
+              date,
+              sunset: data.daily.sunset?.[i],
+              precipitationProb: data.daily.precipitation_probability_max?.[i] ?? 0,
+              precipitationSum: data.daily.precipitation_sum?.[i] ?? 0,
+            })) || [],
+          };
+        }
+
+        setWeatherData(newWeatherData);
+        setError("");
+      } catch (e) {
+        setError(`Không thể lấy dữ liệu thời tiết: ${e.message}`);
+      }
+    };
+
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 3600000);
+    return () => clearInterval(interval);
+  }, [lightStates]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  const handleEditLight = useCallback(async () => {
+    const latNum = parseFloat(selectedLight.lat);
+    const lngNum = parseFloat(selectedLight.lng);
+    if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      setError("Tọa độ không hợp lệ!");
+      return;
+    }
+    try {
+      await updateLightState(selectedLight.node_id, { lat: latNum, lng: lngNum });
+      setOpenEditDialog(false);
+      setSelectedLight(null);
+      setError("");
+    } catch (err) {
+      setError("Không thể cập nhật vị trí đèn");
+    }
+  }, [selectedLight, updateLightState]);
+
+  const handleMapClick = useCallback(
+    (e) => {
+      if (!openEditDialog) return;
+      const lat = e.latlng.lat.toFixed(4);
+      const lng = e.latlng.lng.toFixed(4);
+      setSelectedLight((prev) => ({ ...prev, lat, lng }));
+    },
+    [openEditDialog]
+  );
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const sortedLights = useMemo(() => {
+    const lightsArray = Object.entries(lightStates)
+      .filter(([_, light]) => typeof light.lat === "number" && typeof light.lng === "number")
+      .map(([lightId, light]) => ({ lightId, ...light }));
+    return lightsArray.sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [lightStates, sortConfig]);
+
+  const centerOnLight = (lat, lng) => {
+    if (mapRef.current) mapRef.current.setView([lat, lng], 15);
+  };
+
+  // === ICON THỜI TIẾT ===
+  const getWeatherIcon = (prob) => {
+    if (prob === 0) return <WbSunnyIcon sx={{ color: "#ffb300", fontSize: 22 }} />;
+    if (prob < 30) return <CloudIcon sx={{ color: colors.grey[400], fontSize: 22 }} />;
+    if (prob < 70) return <OpacityIcon sx={{ color: colors.blueAccent[400], fontSize: 22 }} />;
+    return <FlashOnIcon sx={{ color: colors.redAccent[500], fontSize: 22 }} />;
+  };
+
+  // === GỢI Ý ===
+  const getEmergencySuggestion = (light, forecast) => {
+    if (!forecast || !Array.isArray(forecast) || forecast.length === 0) return null;
+    const today = forecast[0];
+    if (light.lamp_state === "OFF" && light.lux < 10 && today.precipitationProb > 50) {
+      return {
+        level: "error",
+        message: `TẮT + TỐI (${light.lux} lux) + SẮP MƯA`,
+        action: "BẬT NGAY",
+        icon: <FlashOnIcon sx={{ color: colors.redAccent[500], fontSize: 20 }} />,
+      };
+    }
+    return null;
+  };
+
+  const getRainEarlySuggestion = (forecast) => {
+    if (!forecast || !Array.isArray(forecast) || forecast.length === 0) return null;
+    const today = forecast[0];
+    if (today.precipitationProb > 60) {
+      return {
+        level: "warning",
+        message: `Mưa lớn (${today.precipitationProb}%) → Bật sớm 17:00`,
+        icon: <OpacityIcon sx={{ color: colors.blueAccent[400], fontSize: 20 }} />,
+      };
+    }
+    return null;
+  };
+
+  const hasEmergency = Object.entries(lightStates).some(([lightId, light]) => {
+    const forecast = weatherData[lightId]?.forecast;
+    return getEmergencySuggestion(light, forecast);
+  });
+
+  const emergencyCount = Object.entries(lightStates).filter(([lightId, light]) => {
+    const forecast = weatherData[lightId]?.forecast;
+    return getEmergencySuggestion(light, forecast);
+  }).length;
+
+  const handleEmergencyTurnOnAll = async () => {
+    try {
+      for (const [lightId, light] of Object.entries(lightStates)) {
+        const forecast = weatherData[lightId]?.forecast;
+        if (getEmergencySuggestion(light, forecast)) {
+          await updateLightState(lightId, { lamp_state: "ON", lamp_dim: 100 });
+        }
+      }
+      setError("Đã bật tất cả đèn khẩn cấp!");
+    } catch (err) {
+      setError("Lỗi khi bật đèn khẩn cấp");
+    }
+  };
+
+  // === PANEL GỢI Ý ĐẸP ===
+  const SuggestionPanel = () => {
+    const suggestions = Object.entries(lightStates)
+      .filter(([lightId, light]) => typeof light.lat === "number" && typeof light.lng === "number")
+      .map(([lightId, light]) => {
+        const forecast = weatherData[lightId]?.forecast;
+        const emergency = getEmergencySuggestion(light, forecast);
+        const rainEarly = getRainEarlySuggestion(forecast);
+        const today = forecast?.[0];
+
+        if (!emergency && !rainEarly) return null;
+
+        return { lightId, light, emergency, rainEarly, today };
+      })
+      .filter(Boolean);
+
+    if (suggestions.length === 0) {
+      return (
+        <Card
+          sx={{
+            position: "absolute",
+            bottom: 16,
+            right: 16,
+            width: 300,
+            zIndex: 1000,
+            boxShadow: 6,
+            borderRadius: 3,
+            background: `linear-gradient(135deg, ${colors.primary[400]} 0%, ${colors.primary[500]} 100%)`,
+            border: `1px solid ${colors.grey[700]}`,
+          }}
+        >
+          <CardContent sx={{ p: 2, textAlign: "center" }}>
+            <WbSunnyIcon sx={{ fontSize: 40, color: "#ffb300", mb: 1 }} />
+            <Typography variant="subtitle1" fontWeight="bold" color={colors.greenAccent[500]}>
+              Tất cả đèn ổn định
+            </Typography>
+            <Typography variant="body2" color={colors.grey[300]}>
+              Không có cảnh báo nào
+            </Typography>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card
+        sx={{
+          position: "absolute",
+          bottom: 16,
+          right: 16,
+          width: 360,
+          maxHeight: "70vh",
+          overflow: "auto",
+          zIndex: 1000,
+          boxShadow: 8,
+          borderRadius: 3,
+          background: `linear-gradient(135deg, ${colors.primary[400]} 0%, ${colors.primary[500]} 100%)`,
+          border: `1px solid ${colors.grey[700]}`,
+        }}
+      >
+        <CardContent sx={{ p: 2 }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+            <Typography variant="h6" fontWeight="bold" color={colors.grey[100]}>
+              Gợi ý điều khiển
+            </Typography>
+            <Chip
+              label={suggestions.length}
+              size="small"
+              sx={{
+                backgroundColor: suggestions.some(s => s.emergency) ? colors.redAccent[500] : colors.orangeAccent[400],
+                color: "white",
+                fontWeight: "bold",
+              }}
+            />
+          </Box>
+
+          {suggestions.map(({ lightId, light, emergency, rainEarly, today }) => (
+            <Box
+              key={lightId}
+              sx={{
+                mb: 2,
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: emergency ? "rgba(211, 47, 47, 0.15)" : "rgba(255, 193, 7, 0.15)",
+                border: `2px solid ${emergency ? colors.redAccent[500] : colors.orangeAccent[400]}`,
+                boxShadow: 2,
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="subtitle1" fontWeight="bold" color={colors.grey[100]}>
+                  Đèn: {lightId}
+                </Typography>
+                {today && getWeatherIcon(today.precipitationProb)}
+              </Box>
+
+              {emergency && (
+                <Alert
+                  severity="error"
+                  icon={emergency.icon}
+                  sx={{ p: 1.5, fontSize: "0.9rem", borderRadius: 1 }}
+                >
+                  <strong>{emergency.message}</strong>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="error"
+                    size="small"
+                    sx={{ mt: 1, fontWeight: "bold" }}
+                    onClick={() => updateLightState(lightId, { lamp_state: "ON", lamp_dim: 100 })}
+                  >
+                    {emergency.action}
+                  </Button>
+                </Alert>
+              )}
+
+              {rainEarly && !emergency && (
+                <Alert
+                  severity="warning"
+                  icon={rainEarly.icon}
+                  sx={{ p: 1.5, fontSize: "0.9rem", borderRadius: 1 }}
+                >
+                  {rainEarly.message}
+                </Alert>
+              )}
+            </Box>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <Box m="20px">
+      {!isDashboard && <Header title="Bản đồ đèn" subtitle="Hệ thống giám sát & gợi ý thông minh" />}
+
+      {hasEmergency && (
+        <Alert
+          severity="error"
+          icon={<ErrorOutlineIcon />}
+          sx={{ mb: 2, animation: "pulse 2s infinite", fontWeight: "bold", boxShadow: 3 }}
+        >
+          CẢNH BÁO KHẨN: {emergencyCount} đèn TẮT trong điều kiện TỐI + SẮP MƯA!
+          <Button size="small" variant="contained" color="error" sx={{ ml: 2 }} onClick={handleEmergencyTurnOnAll}>
+            BẬT TẤT CẢ
+          </Button>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: "10px" }}>
+          {error}
+          <Button onClick={() => window.location.reload()} sx={{ ml: "10px" }}>
+            Thử lại
+          </Button>
+        </Alert>
+      )}
+
+      <Box height={isDashboard ? "300px" : "75vh"} width="100%" position="relative">
+        <MapContainer
+          bounds={bounds}
+          zoom={10}
+          style={{ height: "100%", width: "100%" }}
+          whenCreated={(map) => {
+            mapRef.current = map;
+            map.on("click", handleMapClick);
+          }}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <MapController bounds={bounds} />
+
+          {Object.entries(lightStates)
+            .filter(([_, light]) => typeof light.lat === "number" && typeof light.lng === "number")
+            .map(([lightId, light]) => (
+              <Marker key={lightId} position={[light.lat, light.lng]} icon={createCustomIcon(light.lamp_state)}>
+                <Popup>
+                  <Box textAlign="center">
+                    <Typography fontWeight="bold" color={colors.grey[100]}>{lightId}</Typography>
+                    <Typography fontSize="0.9rem">
+                      {light.lamp_state === "ON" ? "Bật" : "Tắt"} • {light.lamp_dim || 0}%
+                    </Typography>
+                    <Typography fontSize="0.85rem" color={colors.grey[300]}>
+                      ({light.lat.toFixed(4)}, {light.lng.toFixed(4)})
+                    </Typography>
+                    <Typography fontSize="0.85rem" color={colors.grey[300]}>
+                      Ánh sáng: {light.lux || 0} lux
+                    </Typography>
+
+                    {weatherData[lightId]?.forecast?.[0] && (
+                      <Box mt={1} display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                        {getWeatherIcon(weatherData[lightId].forecast[0].precipitationProb)}
+                        <Typography fontSize="0.85rem">
+                          {weatherData[lightId].forecast[0].precipitationProb}% mưa
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      fullWidth
+                      sx={{ mt: 1 }}
+                      onClick={() => {
+                        setSelectedLight({ node_id: lightId, lat: light.lat, lng: light.lng });
+                        setOpenEditDialog(true);
+                      }}
+                    >
+                      Sửa vị trí
+                    </Button>
+                  </Box>
+                </Popup>
+              </Marker>
+            ))}
+
+          <SuggestionPanel />
+        </MapContainer>
+      </Box>
+
+      {/* BẢNG THÔNG TIN */}
+      {!isDashboard && (
+        <Box mt="20px">
+          <Typography variant="h5" color={colors.grey[100]} mb="10px">
+            Danh sách sách đèn
+          </Typography>
+
+          <TableContainer component={Paper} sx={{ backgroundColor: colors.primary[400], borderRadius: 2 }}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: colors.primary[500] }}>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Đèn</TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Trạng thái</TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Ánh sáng</TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Mưa</TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Hoàng hôn</TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Hành động</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedLights.map(({ lightId, ...light }) => {
+                  const today = weatherData[lightId]?.forecast?.[0];
+                  return (
+                    <TableRow key={lightId} hover>
+                      <TableCell sx={{ color: colors.grey[100] }}>{lightId}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={light.lamp_state === "ON" ? "BẬT" : "TẮT"}
+                          color={light.lamp_state === "ON" ? "success" : "error"}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ color: colors.grey[100] }}>{light.lux || 0} lux</TableCell>
+                      <TableCell>
+                        {today ? (
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            {getWeatherIcon(today.precipitationProb)}
+                            <Typography fontSize="0.9rem">{today.precipitationProb}%</Typography>
+                          </Box>
+                        ) : (
+                          "N/A"
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ color: colors.grey[100] }}>
+                        {today?.sunset
+                          ? new Date(today.sunset).toLocaleTimeString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        <Button size="small" variant="outlined" onClick={() => centerOnLight(light.lat, light.lng)}>
+                          Xem
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
+      {/* Dialog sửa vị trí */}
+      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)}>
+        <DialogTitle sx={{ color: colors.grey[100], backgroundColor: colors.primary[400] }}>
+          Sửa vị trí đèn
+        </DialogTitle>
+        <DialogContent sx={{ backgroundColor: colors.primary[400] }}>
+          {selectedLight && (
+            <>
+              <Typography sx={{ mb: "10px", color: colors.grey[100] }}>
+                Đèn: {selectedLight.node_id}
+              </Typography>
+              <TextField
+                label="Vĩ độ"
+                value={selectedLight.lat}
+                onChange={(e) => setSelectedLight({ ...selectedLight, lat: e.target.value })}
+                type="number"
+                inputProps={{ step: 0.0001 }}
+                fullWidth
+                sx={{ mb: "10px", input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
+              />
+              <TextField
+                label="Kinh độ"
+                value={selectedLight.lng}
+                onChange={(e) => setSelectedLight({ ...selectedLight, lng: e.target.value })}
+                type="number"
+                inputProps={{ step: 0.0001 }}
+                fullWidth
+                sx={{ mb: "10px", input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
+              />
+              <Alert severity="info" sx={{ mt: "10px" }}>
+                Nhấp vào bản đồ để chọn vị trí mới.
+              </Alert>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ backgroundColor: colors.primary[400], p: "10px" }}>
+          <Button onClick={() => setOpenEditDialog(false)} color="secondary">
+            Hủy
+          </Button>
+          <Button onClick={handleEditLight} color="success" disabled={!selectedLight?.lat || !selectedLight?.lng}>
+            Lưu
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <style jsx>{`
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.7); }
+          70% { box-shadow: 0 0 0 15px rgba(211, 47, 47, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+        }
+      `}</style>
+    </Box>
+  );
+};
+
+export default Geography;

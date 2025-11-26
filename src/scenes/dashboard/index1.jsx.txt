@@ -1,0 +1,195 @@
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Grid,
+  Typography,
+  useTheme,
+  Stack,
+} from "@mui/material";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import Header from "../../components/Header";
+import BarChart from "../../components/BarChart";
+import PieChart from "../../components/PieChart";
+import Geography from "../../scenes/geography";
+import { useNavigate } from "react-router-dom";
+import { useLightState } from "../../hooks/useLightState";
+import LightbulbIcon from "@mui/icons-material/Lightbulb";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
+import OpacityIcon from "@mui/icons-material/Opacity";
+import CloudIcon from "@mui/icons-material/Cloud";
+import { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
+
+const getColor = (colors, path, fallback) => {
+  return path.split(".").reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : undefined), colors) || fallback;
+};
+
+const Dashboard = () => {
+  const theme = useTheme();
+  const colors = theme.palette?.mode ? require("../../theme").tokens(theme.palette.mode) : {};
+  const navigate = useNavigate();
+  const { lightStates, syncLightStatesWithSchedule } = useLightState();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      syncLightStatesWithSchedule(new Date()).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [syncLightStatesWithSchedule]);
+
+  const totalLamps = Object.keys(lightStates).length;
+  const lampsOn = Object.values(lightStates).filter(l => l.lamp_state === "ON").length;
+  const lampsOff = totalLamps - lampsOn;
+
+  const emergencyLights = useMemo(() => {
+    return Object.values(lightStates).filter(l => l.lamp_state === "OFF" && (l.lux || 0) < 10);
+  }, [lightStates]);
+
+  return (
+    <Box m={{ xs: "10px", md: "20px" }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+        <Header title="SMART LIGHTING CONTROL" subtitle="Hệ thống quản lý đèn thông minh" />
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Button
+            variant="contained"
+            startIcon={<DownloadOutlinedIcon />}
+            sx={{
+              bgcolor: getColor(colors, "blueAccent.700", "#1e88e5"),
+              color: getColor(colors, "grey.100", "#e0e0e0"),
+              fontWeight: 600,
+              textTransform: "none",
+            }}
+          >
+            Xuất báo cáo
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => {
+              localStorage.clear();
+              navigate("/login");
+            }}
+            sx={{ fontWeight: 600, textTransform: "none" }}
+          >
+            Đăng xuất
+          </Button>
+        </Box>
+      </Box>
+
+      <Card sx={{ mt: 2, bgcolor: getColor(colors, "primary.500", "#141b2d"), borderRadius: 2 }}>
+        <CardContent sx={{ p: 2 }}>
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <AccessTimeIcon sx={{ color: getColor(colors, "grey.300", "#a3a3a3") }} />
+                <Typography variant="body1" fontWeight="bold" color={getColor(colors, "grey.100", "#e0e0e0")}>
+                  {format(currentTime, "PPP • HH:mm:ss")} (GMT+7)
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} md={8}>
+              <Box display="flex" justifyContent={{ xs: "flex-start", md: "flex-end" }} gap={3} flexWrap="wrap">
+                <Chip
+                  icon={<PowerSettingsNewIcon />}
+                  label={`Tổng: ${totalLamps} đèn`}
+                  sx={{
+                    bgcolor: getColor(colors, "primary.400", "#1F2A40"),
+                    color: getColor(colors, "grey.100", "#e0e0e0"),
+                    fontWeight: 600,
+                  }}
+                />
+                <Chip icon={<LightbulbIcon />} label={`Bật: ${lampsOn}`} color="success" sx={{ fontWeight: 600 }} />
+                <Chip icon={<LightbulbOutlinedIcon />} label={`Tắt: ${lampsOff}`} color="default" sx={{ fontWeight: 600 }} />
+                {emergencyLights.length > 0 && (
+                  <Chip
+                    icon={<ErrorOutlineIcon />}
+                    label={`${emergencyLights.length} cần bật khẩn`}
+                    color="error"
+                    onClick={() => navigate("/geography")}
+                    sx={{ cursor: "pointer", fontWeight: 600 }}
+                  />
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      <Grid container spacing={2} mt={1}>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2}>
+                Trạng thái đèn
+              </Typography>
+              <Box height={250}>
+                <BarChart isDashboard={true} dataType="lamp_state" lightStates={lightStates} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2}>
+                Phân bổ năng lượng
+              </Typography>
+              <Box height={250}>
+                <PieChart
+                  data={Object.entries(lightStates)
+                    .filter(([_, l]) => l.energy_consumed > 0)
+                    .map(([id, l]) => ({ id, label: `Đèn ${id}`, value: l.energy_consumed }))}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* MINI MAP */}
+        <Grid item xs={12} lg={12}>
+          <Card sx={{ height: "100%", bgcolor: colors.primary[400], borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" color={colors.grey[100]} mb={2}>
+                Vị trí đèn
+              </Typography>
+              <Box height={300} sx={{ borderRadius: 2, overflow: "hidden" }}>
+                <Geography isDashboard={true} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2}>
+                Hành động nhanh
+              </Typography>
+              <Stack direction="row" spacing={2} flexWrap="wrap">
+                <Button variant="contained" color="primary" startIcon={<OpacityIcon />} onClick={() => navigate("/geography")}>
+                  Xem bản đồ
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default Dashboard;
