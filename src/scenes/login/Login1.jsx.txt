@@ -28,9 +28,6 @@ import SpeedIcon from "@mui/icons-material/Speed";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import GoogleIcon from "@mui/icons-material/Google";
 
-// LẤY URL BACKEND TỪ BIẾN MÔI TRƯỜNG (linh hoạt 100%)
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
 const GradientButton = styled(Button)(({ theme }) => ({
   mt: 2,
   py: 1.5,
@@ -84,9 +81,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // ĐÃ SỬA: Dùng API_BASE thay vì hardcode localhost
       const res = await axios.post(
-        `${API_BASE}/api/auth/login`,
+        "http://localhost:5000/api/auth/login",
         { username, password },
         { headers: { "Content-Type": "application/json" } }
       );
