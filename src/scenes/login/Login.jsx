@@ -141,7 +141,7 @@ const Login = () => {
           <Fade in={true} timeout={800}>
             <Box textAlign="center" mb={4}>
               <Avatar
-                src="/assets/logoskytech.png"
+                src="/assets/user.png"
                 alt="SkyTech"
                 sx={{
                   width: 80,
