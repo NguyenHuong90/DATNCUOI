@@ -1,4 +1,4 @@
-// src/scenes/login/Login.jsx – PHIÊN BẢN HOÀN HẢO, KHÔNG LỖI
+// src/scenes/login/Login.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -8,7 +8,7 @@ import {
   Typography,
   IconButton,
   InputAdornment,
-  Avatar,           // ← Đã có
+  Avatar,
   Link,
   useTheme,
   CircularProgress,
@@ -16,7 +16,7 @@ import {
   Checkbox,
   FormControlLabel,
   Fade,
-  Paper,            // ← THÊM DÒNG NÀY
+  Paper,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import axios from "axios";
@@ -28,7 +28,6 @@ import SpeedIcon from "@mui/icons-material/Speed";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import GoogleIcon from "@mui/icons-material/Google";
 
-// Gradient Button
 const GradientButton = styled(Button)(({ theme }) => ({
   mt: 2,
   py: 1.5,
@@ -122,7 +121,7 @@ const Login = () => {
         overflow: "hidden",
       }}
     >
-      {/* ==================== TRÁI: LOGIN FORM ==================== */}
+      {/* LEFT: LOGIN FORM */}
       <Grid
         container
         item
@@ -142,7 +141,7 @@ const Login = () => {
           <Fade in={true} timeout={800}>
             <Box textAlign="center" mb={4}>
               <Avatar
-                src={process.env.PUBLIC_URL + "/assets/logoskytech.png"}
+                src="/assets/logoskytech.png"
                 alt="SkyTech"
                 sx={{
                   width: 80,
@@ -168,35 +167,11 @@ const Login = () => {
           </Typography>
 
           <form onSubmit={handleLogin}>
-            <TextField
-              fullWidth
-              label="Tên đăng nhập"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              margin="normal"
-              variant="outlined"
-              required
-              InputProps={{
-                startAdornment: <InputAdornment position="start">@</InputAdornment>,
-              }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  bgcolor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
-                  "&:hover": { bgcolor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)" },
-                },
-              }}
-            />
+            <TextField fullWidth label="Tên đăng nhập" value={username} onChange={(e) => setUsername(e.target.value)} margin="normal" required
+              InputProps={{ startAdornment: <InputAdornment position="start">@</InputAdornment> }}
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)" } }} />
 
-            <TextField
-              fullWidth
-              label="Mật khẩu"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              margin="normal"
-              variant="outlined"
-              required
+            <TextField fullWidth label="Mật khẩu" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} margin="normal" required
               InputProps={{
                 startAdornment: <InputAdornment position="start">[Lock]</InputAdornment>,
                 endAdornment: (
@@ -207,39 +182,17 @@ const Login = () => {
                   </InputAdornment>
                 ),
               }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  bgcolor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
-                  "&:hover": { bgcolor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)" },
-                },
-              }}
-            />
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)" } }} />
 
-            <FormControlLabel
-              control={<Checkbox checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} color="primary" />}
-              label="Ghi nhớ đăng nhập"
-              sx={{ mt: 1 }}
-            />
+            <FormControlLabel control={<Checkbox checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} color="primary" />} label="Ghi nhớ đăng nhập" sx={{ mt: 1 }} />
 
-            {error && (
-              <Paper elevation={0} sx={{ bgcolor: "error.light", color: "error.contrastText", p: 2, borderRadius: 2, mt: 1, textAlign: "center" }}>
-                {error}
-              </Paper>
-            )}
+            {error && <Paper elevation={0} sx={{ bgcolor: "error.light", color: "error.contrastText", p: 2, borderRadius: 2, mt: 1, textAlign: "center" }}>{error}</Paper>}
 
-            <GradientButton
-              fullWidth
-              type="submit"
-              disabled={loading || !username || !password}
-              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
-            >
+            <GradientButton fullWidth type="submit" disabled={loading || !username || !password} startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>
               {loading ? "Đang đăng nhập..." : "Đăng Nhập"}
             </GradientButton>
 
-            <SocialButton fullWidth startIcon={<GoogleIcon />}>
-              Đăng nhập với Google
-            </SocialButton>
+            <SocialButton fullWidth startIcon={<GoogleIcon />}>Đăng nhập với Google</SocialButton>
           </form>
 
           <Box textAlign="center" mt={3}>
@@ -253,93 +206,45 @@ const Login = () => {
         </Box>
       </Grid>
 
-      {/* ==================== PHẢI: BANNER – FULL, ĐẸP ==================== */}
-      <Grid
-        item
-        xs={false}
-        md={8}
-        sx={{
-          position: "relative",
-          display: { xs: "none", md: "flex" },
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          p: { xs: 2, md: 9, lg: 6 },
-          bgcolor: isDark ? "#0d1b2a" : "#1976d2",
-          color: "white",
-          overflow: "hidden",
-        }}
-      >
-        {/* NỀN ẢNH */}
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: `url(${process.env.PUBLIC_URL}/assets/logoskytech.png)`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            opacity: 0.3,
-            filter: "brightness(0.7)",
-          }}
-        />
+      {/* RIGHT: BANNER */}
+      <Grid item xs={false} md={8} sx={{
+        position: "relative",
+        display: { xs: "none", md: "flex" },
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        p: { xs: 2, md: 9, lg: 6 },
+        bgcolor: isDark ? "#0d1b2a" : "#1976d2",
+        color: "white",
+        overflow: "hidden",
+      }}>
+        <Box sx={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundImage: `url(/assets/logoskytech.png)`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 0.3,
+          filter: "brightness(0.7)",
+        }} />
 
-        {/* GRADIENT ĐÈ LÊN */}
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: isDark
-              ? "linear-gradient(135deg, rgba(13,27,42,0.85) 0%, rgba(27,38,59,0.75) 100%)"
-              : "linear-gradient(135deg, rgba(25,118,210,0.85) 0%, rgba(30,136,229,0.75) 100%)",
-          }}
-        />
+        <Box sx={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: isDark
+            ? "linear-gradient(135deg, rgba(13,27,42,0.85) 0%, rgba(27,38,59,0.75) 100%)"
+            : "linear-gradient(135deg, rgba(25,118,210,0.85) 0%, rgba(30,136,229,0.75) 100%)",
+        }} />
 
-        {/* NỘI DUNG – FULL WIDTH, RESPONSIVE */}
         <Fade in={true} timeout={1000}>
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: { md: 700, lg: 900, xl: 1100 },
-              px: { xs: 2, md: 4, lg: 6 },
-              textAlign: "center",
-              zIndex: 1,
-            }}
-          >
-            <Typography variant="h3" fontWeight={900} mb={3} letterSpacing={2}>
-              SMART LIGHTING
-            </Typography>
+          <Box sx={{ width: "100%", maxWidth: { md: 700, lg: 900, xl: 1100 }, px: { xs: 2, md: 4, lg: 6 }, textAlign: "center", zIndex: 1 }}>
+            <Typography variant="h3" fontWeight={900} mb={3} letterSpacing={2}>SMART LIGHTING</Typography>
             <Typography variant="h6" fontWeight={500} mb={5} sx={{ opacity: 0.95, lineHeight: 1.7 }}>
               Giải pháp đèn thông minh hàng đầu Việt Nam. Tiết kiệm năng lượng, tự động hóa và quản lý từ xa với AI.
             </Typography>
 
             <Grid container spacing={{ xs: 3, md: 6, lg: 8 }} justifyContent="center" mb={5}>
-              <Grid item xs={4} sm={3}>
-                <Box textAlign="center">
-                  <Typography variant="h4" fontWeight="bold" color="#4caf50">98%</Typography>
-                  <Typography variant="body2">Tiết kiệm điện</Typography>
-                  <Lightbulb sx={{ fontSize: 40, color: "#4caf50", mt: 1 }} />
-                </Box>
-              </Grid>
-              <Grid item xs={4} sm={3}>
-                <Box textAlign="center">
-                  <Typography variant="h4" fontWeight="bold" color="#00bcd4">24/7</Typography>
-                  <Typography variant="body2">Giám sát realtime</Typography>
-                  <SpeedIcon sx={{ fontSize: 40, color: "#00bcd4", mt: 1 }} />
-                </Box>
-              </Grid>
-              <Grid item xs={4} sm={3}>
-                <Box textAlign="center">
-                  <Typography variant="h4" fontWeight="bold" color="#ff9800">AI</Typography>
-                  <Typography variant="body2">Tối ưu tự động</Typography>
-                  <SmartToyIcon sx={{ fontSize: 40, color: "#ff9800", mt: 1 }} />
-                </Box>
-              </Grid>
+              <Grid item xs={4} sm={3}><Box textAlign="center"><Typography variant="h4" fontWeight="bold" color="#4caf50">98%</Typography><Typography variant="body2">Tiết kiệm điện</Typography><Lightbulb sx={{ fontSize: 40, color: "#4caf50", mt: 1 }} /></Box></Grid>
+              <Grid item xs={4} sm={3}><Box textAlign="center"><Typography variant="h4" fontWeight="bold" color="#00bcd4">24/7</Typography><Typography variant="body2">Giám sát realtime</Typography><SpeedIcon sx={{ fontSize: 40, color: "#00bcd4", mt: 1 }} /></Box></Grid>
+              <Grid item xs={4} sm={3}><Box textAlign="center"><Typography variant="h4" fontWeight="bold" color="#ff9800">AI</Typography><Typography variant="body2">Tối ưu tự động</Typography><SmartToyIcon sx={{ fontSize: 40, color: "#ff9800", mt: 1 }} /></Box></Grid>
             </Grid>
 
             <Typography variant="body1" sx={{ opacity: 0.9, fontStyle: "italic", fontSize: "1.2rem" }}>
