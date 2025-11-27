@@ -18,12 +18,6 @@ import {
   Avatar,
   Stack,
   Fade,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
 } from "@mui/material";
 import Header from "../../components/Header";
 import { tokens } from "../../theme";
@@ -41,10 +35,6 @@ import CloudIcon from "@mui/icons-material/Cloud";
 import OpacityIcon from "@mui/icons-material/Opacity";
 import EditLocationIcon from "@mui/icons-material/EditLocation";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import WbTwilightIcon from "@mui/icons-material/WbTwilight";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import TipsAndUpdatesIcon from "@mui/icons-material/TipsAndUpdates";
-import AutoModeIcon from "@mui/icons-material/AutoMode";
 
 // Fix Leaflet icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -55,16 +45,23 @@ L.Icon.Default.mergeOptions({
 });
 
 // Styled components
+const StatsGrid = styled(Stack)(({ theme }) => ({
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: theme.spacing(3),
+  mb: theme.spacing(4),
+}));
+
 const StatsCard = styled(Card)(({ theme }) => ({
   background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.95)",
-  borderRadius: "12px",
-  boxShadow: theme.shadows[6],
+  borderRadius: "20px",
+  boxShadow: theme.shadows[8],
   backdropFilter: "blur(12px)",
   border: `1px solid ${theme.palette.divider}`,
   transition: "all 0.3s ease",
   "&:hover": {
-    transform: "translateY(-2px)",
-    boxShadow: theme.shadows[12],
+    transform: "translateY(-4px)",
+    boxShadow: theme.shadows[16],
   },
 }));
 
@@ -95,7 +92,7 @@ const Geography = ({ isDashboard = false }) => {
         lamp_state === "ON"
           ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png"
           : "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
-      iconSize: [24, 40],
+      iconSize: [24, 40], // giảm kích thước
       iconAnchor: [12, 40],
       popupAnchor: [0, -40],
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
@@ -113,7 +110,7 @@ const Geography = ({ isDashboard = false }) => {
     const lats = validLights.map(([_, light]) => light.lat);
     const lngs = validLights.map(([_, light]) => light.lng);
     return [
-      [Math.min(...lats) - 0.01, Math.min(...lngs) - 0.01],
+      [Math.min(...lats) - 0.01, Math.min(...lngs) - 0.01], // thu nhỏ bounds
       [Math.max(...lats) + 0.01, Math.max(...lngs) + 0.01],
     ];
   }, [lightStates]);
@@ -135,7 +132,7 @@ const Geography = ({ isDashboard = false }) => {
           const data = await response.json();
 
           const days = data.daily.time.map((date, i) => ({
-            date: new Date(date).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "numeric" }),
+            date: new Date(date).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric" }),
             rainProb: data.daily.precipitation_probability_max[i] ?? 0,
             sunset: new Date(data.daily.sunset[i]).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           }));
@@ -187,78 +184,6 @@ const Geography = ({ isDashboard = false }) => {
     return <CloudIcon sx={{ color: colors.redAccent[500], fontSize: 18 }} />;
   };
 
-  // AI PREDICTION: Dự đoán thời điểm cần bật đèn
-  const getAISuggestion = (light, weather) => {
-    if (!weather || weather.length === 0) return null;
-    
-    const currentHour = new Date().getHours();
-    const today = weather[0];
-    const sunsetHour = parseInt(today.sunset.split(":")[0]);
-    
-    // DỰ ĐOÁN 1: Sắp hoàng hôn (1h trước)
-    if (currentHour >= sunsetHour - 1 && currentHour < sunsetHour && light.lamp_state === "OFF") {
-      return {
-        type: "sunset_soon",
-        level: "warning",
-        message: `Sắp hoàng hôn (${today.sunset})`,
-        action: "Chuẩn bị bật",
-        icon: <WbTwilightIcon />,
-        color: colors.blueAccent[500]
-      };
-    }
-    
-    // DỰ ĐOÁN 2: Đã qua hoàng hôn + Đèn tắt
-    if (currentHour >= sunsetHour && light.lamp_state === "OFF") {
-      return {
-        type: "after_sunset",
-        level: "urgent",
-        message: `Đã qua hoàng hôn (${today.sunset})`,
-        action: "Bật ngay",
-        icon: <AccessTimeIcon />,
-        color: colors.redAccent[500]
-      };
-    }
-    
-    // DỰ ĐOÁN 3: Tối + Mưa
-    if (light.lux <= 15 && today.rainProb > 60 && light.lamp_state === "OFF") {
-      return {
-        type: "dark_rain",
-        level: "urgent",
-        message: `Tối + Mưa ${today.rainProb}%`,
-        action: "Bật khẩn cấp",
-        icon: <ErrorOutlineIcon />,
-        color: colors.redAccent[600]
-      };
-    }
-    
-    // DỰ ĐOÁN 4: Mưa trong 1-2 ngày tới (chuẩn bị)
-    const tomorrowRain = weather[1]?.rainProb || 0;
-    if (tomorrowRain > 70 && light.lamp_state === "OFF") {
-      return {
-        type: "prepare_rain",
-        level: "info",
-        message: `Ngày mai mưa ${tomorrowRain}%`,
-        action: "Kiểm tra đèn",
-        icon: <TipsAndUpdatesIcon />,
-        color: colors.blueAccent[400]
-      };
-    }
-    
-    // DỰ ĐOÁN 5: Tiết kiệm điện (đèn bật ban ngày)
-    if (currentHour >= 6 && currentHour < 17 && light.lamp_state === "ON" && light.lux > 50) {
-      return {
-        type: "save_energy",
-        level: "info",
-        message: "Ban ngày đủ sáng",
-        action: "Tắt để tiết kiệm",
-        icon: <AutoModeIcon />,
-        color: colors.greenAccent[500]
-      };
-    }
-    
-    return null;
-  };
-
   const getEmergencySuggestion = (light, weather) => {
     if (!weather || light.lamp_state === "ON" || light.lux > 15) return null;
     if (weather[0]?.rainProb > 60) {
@@ -283,22 +208,6 @@ const Geography = ({ isDashboard = false }) => {
     }
   };
 
-  // Tạo data cho bảng thông số
-  const tableData = useMemo(() => {
-    return Object.entries(lightStates)
-      .filter(([_, light]) => typeof light.lat === "number" && typeof light.lng === "number")
-      .map(([id, light]) => {
-        const weather = weatherData[id];
-        const aiSuggestion = getAISuggestion(light, weather);
-        return {
-          id,
-          ...light,
-          weather,
-          aiSuggestion
-        };
-      });
-  }, [lightStates, weatherData]);
-
   return (
     <Box m={{ xs: "10px", md: "20px" }}>
       {!isDashboard && <Header title="BẢN ĐỒ GIÁM SÁT" subtitle="Hệ thống đèn & AI gợi ý điều khiển" />}
@@ -312,7 +221,6 @@ const Geography = ({ isDashboard = false }) => {
           overflow: "hidden",
           border: `1px solid ${colors.grey[700]}`,
           position: "relative",
-          mb: 2,
         }}
       >
         <MapContainer
@@ -385,14 +293,9 @@ const Geography = ({ isDashboard = false }) => {
                                 {getWeatherIcon(day.rainProb)}
                                 <Typography variant="caption">{day.date}</Typography>
                               </Box>
-                              <Box textAlign="right">
-                                <Typography variant="caption" color={day.rainProb > 60 ? colors.redAccent[500] : colors.grey[300]}>
-                                  {day.rainProb}% mưa
-                                </Typography>
-                                <Typography variant="caption" display="block" color={colors.blueAccent[400]}>
-                                  ↓{day.sunset}
-                                </Typography>
-                              </Box>
+                              <Typography variant="caption" color={day.rainProb > 60 ? colors.redAccent[500] : colors.grey[300]}>
+                                {day.rainProb}% mưa
+                              </Typography>
                             </Box>
                           ))}
                         </>
@@ -423,7 +326,7 @@ const Geography = ({ isDashboard = false }) => {
                 position: "absolute",
                 bottom: 16,
                 right: 16,
-                width: 280,
+                width: 280, // giảm width
                 bgcolor: colors.primary[400],
                 border: `2px solid ${colors.redAccent[500]}`,
                 borderRadius: 2,
@@ -477,138 +380,6 @@ const Geography = ({ isDashboard = false }) => {
           )}
         </MapContainer>
       </Paper>
-
-      {/* BẢNG THÔNG SỐ & DỰ ĐOÁN AI */}
-      <Fade in timeout={300}>
-        <StatsCard>
-          <CardContent sx={{ p: 2 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
-              <AutoModeIcon sx={{ color: colors.blueAccent[500], fontSize: 24 }} />
-              <Typography variant="h5" fontWeight={700}>
-                Thông số & Dự đoán AI
-              </Typography>
-            </Box>
-
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: colors.primary[600] }}>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>Đèn</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Trạng thái</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Độ sáng</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Lux</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Hoàng hôn</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Mưa hôm nay</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>Dự đoán AI</TableCell>
-                    <TableCell sx={{ color: "#fff", fontWeight: 700, fontSize: 12 }} align="center">Hành động</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tableData.map((row) => (
-                    <TableRow key={row.id} hover sx={{ '&:hover': { bgcolor: colors.primary[500] } }}>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <LightbulbIcon 
-                            sx={{ 
-                              fontSize: 16, 
-                              color: row.lamp_state === "ON" ? colors.greenAccent[500] : colors.redAccent[500] 
-                            }} 
-                          />
-                          <Typography variant="body2" fontWeight={600}>
-                            Đèn {row.id}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={row.lamp_state === "ON" ? "BẬT" : "TẮT"}
-                          size="small"
-                          sx={{
-                            bgcolor: row.lamp_state === "ON" ? colors.greenAccent[600] : colors.redAccent[600],
-                            color: "white",
-                            fontWeight: 600,
-                            fontSize: 11,
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Typography variant="body2" fontWeight={600} color={colors.greenAccent[500]}>
-                          {row.lamp_dim || 0}%
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Typography variant="body2">
-                          {row.lux || 0}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                          <WbTwilightIcon sx={{ fontSize: 14, color: colors.blueAccent[400] }} />
-                          <Typography variant="caption">
-                            {row.weather?.[0]?.sunset || "N/A"}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                          {getWeatherIcon(row.weather?.[0]?.rainProb || 0)}
-                          <Typography 
-                            variant="caption" 
-                            color={row.weather?.[0]?.rainProb > 60 ? colors.redAccent[500] : "inherit"}
-                            fontWeight={row.weather?.[0]?.rainProb > 60 ? 700 : 400}
-                          >
-                            {row.weather?.[0]?.rainProb || 0}%
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        {row.aiSuggestion ? (
-                          <Box display="flex" alignItems="center" gap={0.5}>
-                            <Box sx={{ color: row.aiSuggestion.color }}>
-                              {row.aiSuggestion.icon}
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" fontWeight={600} color={row.aiSuggestion.color}>
-                                {row.aiSuggestion.message}
-                              </Typography>
-                              <Typography variant="caption" display="block" color="text.secondary">
-                                {row.aiSuggestion.action}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color={colors.grey[500]}>
-                            Không có gợi ý
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell align="center">
-                        {row.aiSuggestion && row.aiSuggestion.level === "urgent" && (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            color={row.aiSuggestion.type === "save_energy" ? "success" : "error"}
-                            sx={{ fontSize: 10, px: 1 }}
-                            onClick={() => {
-                              if (row.aiSuggestion.type === "save_energy") {
-                                updateLightState(row.id, { lamp_state: "OFF" });
-                              } else {
-                                updateLightState(row.id, { lamp_state: "ON", lamp_dim: 100 });
-                              }
-                            }}
-                          >
-                            {row.aiSuggestion.type === "save_energy" ? "TẮT" : "BẬT"}
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </StatsCard>
-      </Fade>
 
       {/* EDIT DIALOG */}
       <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
