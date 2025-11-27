@@ -315,35 +315,35 @@ const Team = () => {
       <Header title="ĐỘI NGŨ" subtitle="Quản lý thành viên hệ thống" />
 
       {/* STATISTICS */}
-      <Stack direction={{ xs: "column", md: "row" }} spacing={1} mb={2} flexWrap="wrap">
-        <StatCard elevation={0} sx={{ flex: "1 1 120px", p: 1 }}>
-          <CardContent sx={{ p: 1 }}>
-            <Typography variant="h6" fontWeight={700} color={colors.primary[100]}>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={0.5} mb={0.5} flexWrap="wrap">
+        <StatCard elevation={0} sx={{ flex: "1 1 100px", p: 0.5 }}>
+          <CardContent sx={{ p: 0.5, '&:last-child': { pb: 0.5 } }}>
+            <Typography variant="body1" fontWeight={700} fontSize="0.875rem" color={colors.primary[100]}>
               {totalCount}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" fontSize="0.6rem" color="text.secondary" lineHeight={1.2}>
               Tổng thành viên
             </Typography>
           </CardContent>
         </StatCard>
 
-        <StatCard elevation={0} sx={{ flex: "1 1 120px", p: 1 }}>
-          <CardContent sx={{ p: 1 }}>
-            <Typography variant="h6" fontWeight={700} color={colors.greenAccent[500]}>
+        <StatCard elevation={0} sx={{ flex: "1 1 100px", p: 0.5 }}>
+          <CardContent sx={{ p: 0.5, '&:last-child': { pb: 0.5 } }}>
+            <Typography variant="body1" fontWeight={700} fontSize="0.875rem" color={colors.greenAccent[500]}>
               {adminCount}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" fontSize="0.6rem" color="text.secondary" lineHeight={1.2}>
               Quản trị viên
             </Typography>
           </CardContent>
         </StatCard>
 
-        <StatCard elevation={0} sx={{ flex: "1 1 120px", p: 1 }}>
-          <CardContent sx={{ p: 1 }}>
-            <Typography variant="h6" fontWeight={700} color={colors.blueAccent[500]}>
+        <StatCard elevation={0} sx={{ flex: "1 1 100px", p: 0.5 }}>
+          <CardContent sx={{ p: 0.5, '&:last-child': { pb: 0.5 } }}>
+            <Typography variant="body1" fontWeight={700} fontSize="0.875rem" color={colors.blueAccent[500]}>
               {userCount}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" fontSize="0.6rem" color="text.secondary" lineHeight={1.2}>
               Người dùng
             </Typography>
           </CardContent>

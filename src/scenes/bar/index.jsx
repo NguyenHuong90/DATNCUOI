@@ -44,19 +44,19 @@ const Bar = () => {
 
       {/* STATISTICS */}
       <Fade in timeout={200}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={0.3} mb={1}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={0.5} mb={0.5}>
           {stats.map((item, idx) => (
             <Card key={idx} elevation={0} sx={{ flex: 1, bgcolor: "background.paper", borderRadius: 0.5 }}>
-              <CardContent sx={{ p: 0.3 }}>
-                <Stack direction="row" alignItems="center" spacing={0.3}>
-                  <Avatar sx={{ bgcolor: item.color, width: 28, height: 28 }}>
+              <CardContent sx={{ p: 0.5, '&:last-child': { pb: 0.5 } }}>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Avatar sx={{ bgcolor: item.color, width: 24, height: 24, fontSize: "0.875rem" }}>
                     {item.icon}
                   </Avatar>
-                  <Box>
-                    <Typography variant="caption" fontWeight={600} color={item.textColor}>
+                  <Box flex={1}>
+                    <Typography variant="body2" fontWeight={600} color={item.textColor} fontSize="0.875rem">
                       {item.value}
                     </Typography>
-                    <Typography variant="overline" color="text.secondary">{item.label}</Typography>
+                    <Typography variant="caption" fontSize="0.6rem" color="text.secondary" lineHeight={1.2}>{item.label}</Typography>
                   </Box>
                 </Stack>
               </CardContent>
