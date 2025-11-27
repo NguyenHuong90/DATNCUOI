@@ -1,3 +1,4 @@
+// src/scenes/pie/index.jsx
 import { Box, Paper, Stack, Card, CardContent, Avatar, Typography, Fade, Alert, Chip } from "@mui/material";
 import Header from "../../components/Header";
 import PieChart from "../../components/PieChart";
@@ -12,27 +13,26 @@ import ShowChartIcon from "@mui/icons-material/ShowChart";
 // Styled components
 const StatsCard = styled(Card)(({ theme }) => ({
   background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.95)",
-  borderRadius: "16px", // giảm từ 20
-  boxShadow: theme.shadows[6], // giảm shadow
-  backdropFilter: "blur(10px)", // giảm blur
+  borderRadius: "20px",
+  boxShadow: theme.shadows[8],
+  backdropFilter: "blur(12px)",
   border: `1px solid ${theme.palette.divider}`,
   transition: "all 0.3s ease",
   "&:hover": {
-    boxShadow: theme.shadows[12],
-    transform: "translateY(-2px)", // giảm dịch chuyển
+    boxShadow: theme.shadows[16],
+    transform: "translateY(-4px)",
   },
 }));
 
 const ChartContainer = styled(Paper)(({ theme }) => ({
   background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.95)",
-  borderRadius: "20px", // giảm từ 24
-  boxShadow: theme.shadows[8], // giảm shadow
-  backdropFilter: "blur(12px)", // giảm blur
+  borderRadius: "24px",
+  boxShadow: theme.shadows[10],
+  backdropFilter: "blur(16px)",
   border: `1px solid ${theme.palette.divider}`,
-  p: 2, // giảm padding từ 4
-  height: "60vh", // giảm từ 70vh
+  p: 4,
+  height: "70vh",
   position: "relative",
-  overflow: "hidden",
 }));
 
 const Pie = () => {
@@ -40,6 +40,7 @@ const Pie = () => {
   const colors = tokens(theme.palette.mode);
   const { lightStates, lightHistory } = useLightState();
 
+  // Tính toán dữ liệu năng lượng
   const energyDataFromStates = Object.entries(lightStates).reduce((acc, [nodeId, state]) => {
     if (state.energy_consumed > 0) {
       acc[nodeId] = { id: nodeId, label: `Đèn ${nodeId}`, value: state.energy_consumed };
@@ -50,7 +51,9 @@ const Pie = () => {
   const energyDataFromHistory = lightHistory.reduce((acc, entry) => {
     const lampId = entry.lightId;
     if (entry.energy_consumed > 0) {
-      if (!acc[lampId]) acc[lampId] = { id: lampId, label: `Đèn ${lampId}`, value: 0 };
+      if (!acc[lampId]) {
+        acc[lampId] = { id: lampId, label: `Đèn ${lampId}`, value: 0 };
+      }
       acc[lampId].value += entry.energy_consumed;
     }
     return acc;
@@ -65,20 +68,20 @@ const Pie = () => {
   const highestConsumption = pieData[0]?.value.toFixed(3) || 0;
 
   return (
-    <Box m={{ xs: "8px", md: "16px" }}> {/* giảm margin */}
+    <Box m={{ xs: "10px", md: "20px" }}>
       <Header title="TIÊU THỤ NĂNG LƯỢNG" subtitle="Phân tích điện năng tiêu thụ theo từng bóng đèn" />
 
       {/* STATISTICS */}
       <Fade in={true} timeout={600}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} mb={3}> {/* giảm spacing */}
+        <Stack direction={{ xs: "column", md: "row" }} spacing={3} mb={4}>
           <StatsCard elevation={0} sx={{ flex: 1 }}>
-            <CardContent sx={{ p: 1.5 }}> {/* giảm padding */}
-              <Stack direction="row" alignItems="center" spacing={1.5}>
-                <Avatar sx={{ bgcolor: colors.blueAccent[600], width: 48, height: 48 }}> {/* giảm size */}
-                  <FlashOnIcon sx={{ fontSize: 24 }} />
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.blueAccent[600], width: 60, height: 60 }}>
+                  <FlashOnIcon sx={{ fontSize: 32 }} />
                 </Avatar>
                 <Box>
-                  <Typography variant="h5" fontWeight={700} color={colors.primary[100]}> {/* giảm font-size */}
+                  <Typography variant="h4" fontWeight={800} color={colors.primary[100]}>
                     {totalEnergy} kWh
                   </Typography>
                   <Typography variant="body2" color="text.secondary">Tổng tiêu thụ</Typography>
@@ -88,13 +91,13 @@ const Pie = () => {
           </StatsCard>
 
           <StatsCard elevation={0} sx={{ flex: 1 }}>
-            <CardContent sx={{ p: 1.5 }}>
-              <Stack direction="row" alignItems="center" spacing={1.5}>
-                <Avatar sx={{ bgcolor: colors.greenAccent[600], width: 48, height: 48 }}>
-                  <LightbulbIcon sx={{ fontSize: 24 }} />
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.greenAccent[600], width: 60, height: 60 }}>
+                  <LightbulbIcon sx={{ fontSize: 32 }} />
                 </Avatar>
                 <Box>
-                  <Typography variant="h5" fontWeight={700} color={colors.greenAccent[500]}>
+                  <Typography variant="h4" fontWeight={800} color={colors.greenAccent[500]}>
                     {activeLamps}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">Đèn tiêu thụ</Typography>
@@ -104,13 +107,13 @@ const Pie = () => {
           </StatsCard>
 
           <StatsCard elevation={0} sx={{ flex: 1 }}>
-            <CardContent sx={{ p: 1.5 }}>
-              <Stack direction="row" alignItems="center" spacing={1.5}>
-                <Avatar sx={{ bgcolor: colors.redAccent[600], width: 48, height: 48 }}>
-                  <ShowChartIcon sx={{ fontSize: 24 }} />
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.redAccent[600], width: 60, height: 60 }}>
+                  <ShowChartIcon sx={{ fontSize: 32 }} />
                 </Avatar>
                 <Box>
-                  <Typography variant="h5" fontWeight={700} color={colors.redAccent[500]}>
+                  <Typography variant="h4" fontWeight={800} color={colors.redAccent[500]}>
                     {highestConsumption} kWh
                   </Typography>
                   <Typography variant="body2" color="text.secondary">Cao nhất</Typography>
@@ -124,7 +127,7 @@ const Pie = () => {
       {/* ALERT */}
       {pieData.length === 0 && (
         <Fade in={true}>
-          <Alert severity="info" sx={{ mb: 2, borderRadius: 2, fontSize: "0.875rem" }}>
+          <Alert severity="info" sx={{ mb: 3, borderRadius: 3, fontSize: "1rem" }}>
             Chưa có dữ liệu tiêu thụ năng lượng. Đèn cần hoạt động để ghi nhận.
           </Alert>
         </Fade>
@@ -133,11 +136,11 @@ const Pie = () => {
       {/* CHART */}
       <Fade in={true} timeout={800}>
         <ChartContainer elevation={0}>
-          <Stack spacing={1.5} mb={2}>
-            <Typography variant="subtitle1" fontWeight={600} color={colors.grey[100]} textAlign="center">
+          <Stack spacing={2} mb={3}>
+            <Typography variant="h6" fontWeight={700} color={colors.grey[100]} textAlign="center">
               Phân bố tiêu thụ năng lượng
             </Typography>
-            <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.5}>
+            <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={1}>
               {pieData.slice(0, 6).map((item) => (
                 <Chip
                   key={item.id}
@@ -146,17 +149,16 @@ const Pie = () => {
                   sx={{
                     bgcolor: colors.primary[600],
                     color: "#fff",
-                    fontWeight: 500,
-                    fontSize: "0.75rem",
+                    fontWeight: 600,
                   }}
                 />
               ))}
               {pieData.length > 6 && (
-                <Chip label={`+${pieData.length - 6} đèn khác`} size="small" color="default" sx={{ fontSize: "0.75rem" }} />
+                <Chip label={`+${pieData.length - 6} đèn khác`} size="small" color="default" />
               )}
             </Stack>
           </Stack>
-          <Box height="calc(100% - 60px)"> {/* giảm height chart */}
+          <Box height="calc(100% - 80px)">
             <PieChart data={pieData} />
           </Box>
         </ChartContainer>

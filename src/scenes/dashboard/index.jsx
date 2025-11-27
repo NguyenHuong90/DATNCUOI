@@ -8,6 +8,11 @@ import {
   useTheme,
   Stack,
   LinearProgress,
+  Select,
+  MenuItem,
+  Paper,
+  Avatar,
+  Fade,
 } from "@mui/material";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import Header from "../../components/Header";
@@ -25,11 +30,22 @@ import OpacityIcon from "@mui/icons-material/Opacity";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import CloudIcon from "@mui/icons-material/Cloud";
+import FlashOnIcon from "@mui/icons-material/FlashOn";
+import Brightness6Icon from "@mui/icons-material/Brightness6";
+import { styled } from "@mui/material/styles";
 
-// Safe color getter
 const getColor = (colors, path, fallback) => {
   return path.split(".").reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : undefined), colors) || fallback;
 };
+
+const ControlCard = styled(Paper)(({ theme }) => ({
+  background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.95)",
+  borderRadius: "8px",
+  boxShadow: theme.shadows[1],
+  backdropFilter: "blur(6px)",
+  border: `1px solid ${theme.palette.divider}`,
+  transition: "all 0.2s ease",
+}));
 
 const Dashboard = () => {
   const theme = useTheme();
@@ -37,6 +53,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { lightStates, syncLightStatesWithSchedule } = useLightState();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [dataType, setDataType] = useState("lamp_state");
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -59,13 +76,31 @@ const Dashboard = () => {
     return Object.values(lightStates).filter(l => l.lamp_state === "OFF" && (l.lux || 0) < 10);
   }, [lightStates]);
 
+  const avgBrightness = totalLamps > 0 
+    ? Math.round(Object.values(lightStates).reduce((sum, s) => sum + (s.lamp_dim || 0), 0) / totalLamps)
+    : 0;
+
+  const chartStats = [
+    { label: "Tổng đèn", value: totalLamps, icon: <LightbulbIcon />, color: colors.redAccent?.[600] || "#f44336", textColor: colors.primary?.[100] || "#e0e0e0" },
+    { label: "Đang bật", value: lampsOn, icon: <FlashOnIcon />, color: colors.greenAccent?.[600] || "#4caf50", textColor: colors.greenAccent?.[500] || "#66bb6a" },
+    { label: "Độ sáng TB", value: `${avgBrightness}%`, icon: <Brightness6Icon />, color: colors.blueAccent?.[600] || "#2196f3", textColor: colors.blueAccent?.[500] || "#42a5f5" }
+  ];
+
   return (
-    <Box m={{ xs: "10px", md: "20px" }}>
-      {/* HEADER */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
-        <Header title="SMART LIGHTING CONTROL" subtitle="Hệ thống quản lý đèn thông minh doanh nghiệp" />
-        <Box display="flex" gap={1} flexWrap="wrap">
+    <Box m={{ xs: "10px", md: "16px" }} maxWidth="1600px" mx="auto">
+      {/* HEADER - Compact */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1.5} mb={2}>
+        <Box>
+          <Typography variant="h5" fontWeight="700" color={getColor(colors, "grey.100", "#e0e0e0")}>
+            SMART LIGHTING CONTROL
+          </Typography>
+          <Typography variant="body2" color={getColor(colors, "grey.300", "#a3a3a3")}>
+            Hệ thống quản lý đèn thông minh doanh nghiệp
+          </Typography>
+        </Box>
+        <Box display="flex" gap={1}>
           <Button
+            size="small"
             variant="contained"
             startIcon={<DownloadOutlinedIcon />}
             sx={{
@@ -73,63 +108,76 @@ const Dashboard = () => {
               color: getColor(colors, "grey.100", "#e0e0e0"),
               fontWeight: 600,
               textTransform: "none",
-              borderRadius: 2,
+              fontSize: "0.875rem",
+              py: 0.75,
+              px: 2,
             }}
           >
             Xuất báo cáo
           </Button>
           <Button
+            size="small"
             variant="outlined"
             color="error"
             onClick={() => {
               localStorage.clear();
               navigate("/login");
             }}
-            sx={{ fontWeight: 600, textTransform: "none", borderRadius: 2 }}
+            sx={{ 
+              fontWeight: 600, 
+              textTransform: "none",
+              fontSize: "0.875rem",
+              py: 0.75,
+              px: 2,
+            }}
           >
             Đăng xuất
           </Button>
         </Box>
       </Box>
 
-      {/* HÀNG TỔNG QUAN - SIÊU NỔI BẬT */}
-      <Card sx={{ mt: 3, bgcolor: getColor(colors, "primary.500", "#141b2d"), borderRadius: 3, boxShadow: "0 8px 25px rgba(0,0,0,0.15)" }}>
-        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-          <Grid container spacing={3} alignItems="center">
-            {/* Thời gian */}
-            <Grid item xs={12} md={4}>
-              <Box display="flex" alignItems="center" gap={2}>
-                <AccessTimeIcon sx={{ fontSize: 32, color: getColor(colors, "grey.300", "#a3a3a3") }} />
+      {/* TỔNG QUAN - Micro Compact */}
+      <Card sx={{ 
+        bgcolor: getColor(colors, "primary.500", "#141b2d"), 
+        borderRadius: 1.5, 
+        boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
+        mb: 1.5
+      }}>
+        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+          <Grid container spacing={1} alignItems="center">
+            {/* Thời gian - Micro */}
+            <Grid item xs={12} md={2}>
+              <Box display="flex" alignItems="center" gap={0.75}>
+                <AccessTimeIcon sx={{ fontSize: 16, color: getColor(colors, "grey.300", "#a3a3a3") }} />
                 <Box>
-                  <Typography variant="h6" fontWeight="bold" color={getColor(colors, "grey.100", "#e0e0e0")}>
-                    {format(currentTime, "PPP")}
+                  <Typography variant="caption" fontWeight="600" color={getColor(colors, "grey.100", "#e0e0e0")} display="block" fontSize="0.7rem" lineHeight={1.2}>
+                    {format(currentTime, "dd/MM/yyyy")}
                   </Typography>
-                  <Typography variant="body2" color={getColor(colors, "grey.300", "#a3a3a3")}>
-                    {format(currentTime, "HH:mm:ss")} (GMT+7)
+                  <Typography variant="caption" color={getColor(colors, "grey.300", "#a3a3a3")} fontSize="0.65rem" lineHeight={1.2}>
+                    {format(currentTime, "HH:mm:ss")}
                   </Typography>
                 </Box>
               </Box>
             </Grid>
 
-            {/* TỔNG SỐ ĐÈN - SIÊU RÕ RÀNG */}
-            <Grid item xs={12} md={8}>
-              <Box display="flex" justifyContent="flex-end" gap={2} flexWrap="wrap">
+            {/* Stats Cards - Micro */}
+            <Grid item xs={12} md={10}>
+              <Box display="flex" justifyContent="flex-end" gap={0.75} flexWrap="wrap">
                 {/* Tổng số đèn */}
                 <Box
                   sx={{
                     bgcolor: getColor(colors, "primary.400", "#1F2A40"),
-                    borderRadius: 3,
-                    p: 2,
-                    minWidth: 140,
+                    borderRadius: 1,
+                    p: 0.75,
+                    minWidth: 70,
                     textAlign: "center",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                   }}
                 >
-                  <PowerSettingsNewIcon sx={{ fontSize: 36, color: getColor(colors, "grey.100", "#e0e0e0") }} />
-                  <Typography variant="h5" fontWeight="bold" color={getColor(colors, "grey.100", "#e0e0e0")} mt={1}>
+                  <PowerSettingsNewIcon sx={{ fontSize: 18, color: getColor(colors, "grey.100", "#e0e0e0") }} />
+                  <Typography variant="body2" fontWeight="700" color={getColor(colors, "grey.100", "#e0e0e0")} lineHeight={1.1} mt={0.25}>
                     {totalLamps}
                   </Typography>
-                  <Typography variant="body2" color={getColor(colors, "grey.300", "#a3a3a3")}>
+                  <Typography variant="caption" color={getColor(colors, "grey.300", "#a3a3a3")} fontSize="0.65rem" lineHeight={1.1}>
                     Tổng đèn
                   </Typography>
                 </Box>
@@ -138,18 +186,17 @@ const Dashboard = () => {
                 <Box
                   sx={{
                     bgcolor: "#1e7b3a",
-                    borderRadius: 3,
-                    p: 2,
-                    minWidth: 140,
+                    borderRadius: 1,
+                    p: 0.75,
+                    minWidth: 70,
                     textAlign: "center",
-                    boxShadow: "0 4px 12px rgba(30, 123, 58, 0.3)",
                   }}
                 >
-                  <LightbulbIcon sx={{ fontSize: 36, color: "#c8f5d5" }} />
-                  <Typography variant="h5" fontWeight="bold" color="#c8f5d5" mt={1}>
+                  <LightbulbIcon sx={{ fontSize: 18, color: "#c8f5d5" }} />
+                  <Typography variant="body2" fontWeight="700" color="#c8f5d5" lineHeight={1.1} mt={0.25}>
                     {lampsOn}
                   </Typography>
-                  <Typography variant="body2" color="#a0e6b8">
+                  <Typography variant="caption" color="#a0e6b8" fontSize="0.65rem" lineHeight={1.1}>
                     Đang bật
                   </Typography>
                 </Box>
@@ -158,18 +205,17 @@ const Dashboard = () => {
                 <Box
                   sx={{
                     bgcolor: "#7f1f1f",
-                    borderRadius: 3,
-                    p: 2,
-                    minWidth: 140,
+                    borderRadius: 1,
+                    p: 0.75,
+                    minWidth: 70,
                     textAlign: "center",
-                    boxShadow: "0 4px 12px rgba(127, 31, 31, 0.3)",
                   }}
                 >
-                  <LightbulbOutlinedIcon sx={{ fontSize: 36, color: "#f5c8c8" }} />
-                  <Typography variant="h5" fontWeight="bold" color="#f5c8c8" mt={1}>
+                  <LightbulbOutlinedIcon sx={{ fontSize: 18, color: "#f5c8c8" }} />
+                  <Typography variant="body2" fontWeight="700" color="#f5c8c8" lineHeight={1.1} mt={0.25}>
                     {lampsOff}
                   </Typography>
-                  <Typography variant="body2" color="#e6a0a0">
+                  <Typography variant="caption" color="#e6a0a0" fontSize="0.65rem" lineHeight={1.1}>
                     Đang tắt
                   </Typography>
                 </Box>
@@ -179,22 +225,21 @@ const Dashboard = () => {
                   <Box
                     sx={{
                       bgcolor: "#c62828",
-                      borderRadius: 3,
-                      p: 2,
-                      minWidth: 160,
+                      borderRadius: 1,
+                      p: 0.75,
+                      minWidth: 80,
                       textAlign: "center",
-                      boxShadow: "0 4px 15px rgba(198, 40, 40, 0.4)",
                       cursor: "pointer",
                       transition: "transform 0.2s",
                       "&:hover": { transform: "scale(1.05)" },
                     }}
                     onClick={() => navigate("/geography")}
                   >
-                    <ErrorOutlineIcon sx={{ fontSize: 36, color: "#ffebee" }} />
-                    <Typography variant="h6" fontWeight="bold" color="#ffebee" mt={1}>
+                    <ErrorOutlineIcon sx={{ fontSize: 18, color: "#ffebee" }} />
+                    <Typography variant="body2" fontWeight="700" color="#ffebee" lineHeight={1.1} mt={0.25}>
                       {emergencyLights.length}
                     </Typography>
-                    <Typography variant="body2" color="#ffb3b3">
+                    <Typography variant="caption" color="#ffb3b3" fontSize="0.65rem" lineHeight={1.1}>
                       Cần bật khẩn
                     </Typography>
                   </Box>
@@ -203,52 +248,51 @@ const Dashboard = () => {
             </Grid>
           </Grid>
 
-          {/* Thanh tiến độ tỷ lệ bật */}
-          <Box mt={2}>
+          {/* Progress Bar - Micro Slim */}
+          <Box mt={0.75}>
             <LinearProgress
               variant="determinate"
               value={onRate}
               sx={{
-                height: 10,
-                borderRadius: 5,
+                height: 4,
+                borderRadius: 2,
                 bgcolor: getColor(colors, "grey.700", "#3d3d3d"),
                 "& .MuiLinearProgress-bar": {
                   bgcolor: "#4cceac",
-                  borderRadius: 5,
+                  borderRadius: 2,
                 },
               }}
             />
-            <Typography variant="caption" color={getColor(colors, "grey.300", "#a3a3a3")} textAlign="right" mt={0.5}>
-              {onRate.toFixed(1)}% đèn đang hoạt động
+            <Typography variant="caption" color={getColor(colors, "grey.300", "#a3a3a3")} display="block" textAlign="right" mt={0.25} fontSize="0.65rem">
+              {onRate.toFixed(1)}% đang hoạt động
             </Typography>
           </Box>
         </CardContent>
       </Card>
 
-      {/* MAIN CONTENT */}
-      <Grid container spacing={2} mt={2}>
-        {/* BAR CHART */}
+      {/* MAIN CONTENT - 2 Rows Layout */}
+      <Grid container spacing={2}>
+        {/* Row 1: Charts */}
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, height: "100%" }}>
-            <CardContent>
-              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2} fontWeight="bold">
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Typography variant="subtitle1" color={getColor(colors, "grey.100", "#e0e0e0")} mb={1.5} fontWeight="600">
                 Trạng thái đèn
               </Typography>
-              <Box height={280}>
+              <Box height={220}>
                 <BarChart isDashboard={true} dataType="lamp_state" lightStates={lightStates} />
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* PIE CHART */}
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, height: "100%" }}>
-            <CardContent>
-              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2} fontWeight="bold">
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Typography variant="subtitle1" color={getColor(colors, "grey.100", "#e0e0e0")} mb={1.5} fontWeight="600">
                 Năng lượng tiêu thụ
               </Typography>
-              <Box height={280}>
+              <Box height={220}>
                 <PieChart
                   data={Object.entries(lightStates)
                     .filter(([_, l]) => l.energy_consumed > 0)
@@ -259,24 +303,24 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        {/* BẢN ĐỒ - FULL HEIGHT, SIÊU ĐẸP */}
-        <Grid item xs={12}>
-          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, boxShadow: 3, height: "100%" }}>
+        {/* Row 2: Map + Quick Actions */}
+        <Grid item xs={12} md={10}>
+          <Card sx={{ 
+            bgcolor: getColor(colors, "primary.400", "#1F2A40"), 
+            borderRadius: 2, 
+            height: 400 
+          }}>
             <CardContent sx={{ p: 0, height: "100%", display: "flex", flexDirection: "column" }}>
-              {/* Tiêu đề */}
-              <Box p={2} pb={1}>
-                <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} fontWeight="bold">
+              <Box px={2} pt={2} pb={1}>
+                <Typography variant="subtitle1" color={getColor(colors, "grey.100", "#e0e0e0")} fontWeight="600">
                   Vị trí đèn
                 </Typography>
               </Box>
-
-              {/* Bản đồ - FULL HEIGHT */}
               <Box
                 sx={{
                   flex: 1,
                   minHeight: 0,
                   position: "relative",
-                  borderRadius: "0 0 8px 8px",
                   overflow: "hidden",
                   "& > div": {
                     height: "100% !important",
@@ -289,21 +333,40 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        {/* QUICK ACTIONS */}
-        <Grid item xs={12}>
-          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2 }}>
-            <CardContent>
-              <Typography variant="h6" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2} fontWeight="bold">
+        <Grid item xs={12} md={2}>
+          <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, height: 400 }}>
+            <CardContent sx={{ p: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+              <Typography variant="subtitle1" color={getColor(colors, "grey.100", "#e0e0e0")} mb={2} fontWeight="600">
                 Hành động nhanh
               </Typography>
-              <Stack direction="row" spacing={2} flexWrap="wrap">
-                <Button variant="contained" color="success" startIcon={<LightbulbIcon />} onClick={() => navigate("/light-control")}>
+              <Stack spacing={1.5} flex={1}>
+                <Button 
+                  fullWidth
+                  variant="contained" 
+                  color="success" 
+                  startIcon={<LightbulbIcon />} 
+                  onClick={() => navigate("/light-control")}
+                  sx={{ py: 1.5, textTransform: "none", fontWeight: 600 }}
+                >
                   Điều khiển đèn
                 </Button>
-                <Button variant="contained" color="primary" startIcon={<OpacityIcon />} onClick={() => navigate("/geography")}>
+                <Button 
+                  fullWidth
+                  variant="contained" 
+                  color="primary" 
+                  startIcon={<OpacityIcon />} 
+                  onClick={() => navigate("/geography")}
+                  sx={{ py: 1.5, textTransform: "none", fontWeight: 600 }}
+                >
                   Xem bản đồ
                 </Button>
-                <Button variant="outlined" startIcon={<CloudIcon />} onClick={() => navigate("/calendar")}>
+                <Button 
+                  fullWidth
+                  variant="outlined" 
+                  startIcon={<CloudIcon />} 
+                  onClick={() => navigate("/calendar")}
+                  sx={{ py: 1.5, textTransform: "none", fontWeight: 600 }}
+                >
                   Lịch trình
                 </Button>
               </Stack>

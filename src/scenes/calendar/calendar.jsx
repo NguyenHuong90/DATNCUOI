@@ -23,14 +23,10 @@ import {
   Stack,
   Chip,
   Avatar,
-  IconButton,
-  Tooltip,
-  Fade,
   Slider,
-  Card,
-  CardContent,
-  FormControl,     // ĐÃ THÊM
-  InputLabel,      // ĐÃ THÊM
+  Fade,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import Header from "../../components/Header";
 import { tokens } from "../../theme";
@@ -43,18 +39,13 @@ import AddTaskIcon from "@mui/icons-material/AddTask";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import { format } from "date-fns";
 
-// Styled components
 const CalendarCard = styled(Paper)(({ theme }) => ({
   background: theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.95)",
-  borderRadius: "20px",
-  boxShadow: theme.shadows[8],
+  borderRadius: "16px",
+  boxShadow: theme.shadows[6],
   backdropFilter: "blur(12px)",
   border: `1px solid ${theme.palette.divider}`,
   overflow: "hidden",
-  transition: "all 0.3s ease",
-  "&:hover": {
-    boxShadow: theme.shadows[16],
-  },
 }));
 
 const GradientButton = styled(Button)(({ theme }) => ({
@@ -178,175 +169,104 @@ const Calendar = () => {
 
   const totalLights = Object.keys(lightStates).length;
 
+  const stats = [
+    { value: activeSchedules, label: "Lịch đang hoạt động", icon: <ScheduleIcon fontSize="small"/>, color: colors.blueAccent[600], textColor: colors.primary[100] },
+    { value: totalLights, label: "Tổng số bóng đèn", icon: <LightbulbIcon fontSize="small"/>, color: colors.greenAccent[600], textColor: colors.greenAccent[500] },
+    { value: format(currentDateTime, "HH:mm:ss"), label: format(currentDateTime, "dd/MM/yyyy"), icon: <AccessTimeIcon fontSize="small"/>, color: colors.redAccent[600], textColor: colors.blueAccent[500] },
+  ];
+
   return (
-    <Box m={{ xs: "10px", md: "20px" }}>
+    <Box m={{ xs: "8px", md: "16px" }}>
       <Header title="LỊCH HẸN GIỜ" subtitle="Quản lý bật/tắt đèn tự động" />
 
       {/* STATISTICS */}
-      <Fade in={true} timeout={600}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={3} mb={4}>
-          <Card elevation={0} sx={{ flex: 1, bgcolor: "background.paper", borderRadius: 4 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Avatar sx={{ bgcolor: colors.blueAccent[600], width: 56, height: 56 }}>
-                  <ScheduleIcon />
-                </Avatar>
+      <Fade in timeout={600}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} mb={2}>
+          {stats.map((s,i) => (
+            <Paper key={i} elevation={0} sx={{ flex: 1, borderRadius: 1, p: 1 }}>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Avatar sx={{ bgcolor: s.color, width: 36, height: 36 }}>{s.icon}</Avatar>
                 <Box>
-                  <Typography variant="h4" fontWeight={800} color={colors.primary[100]}>
-                    {activeSchedules}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">Lịch đang hoạt động</Typography>
+                  <Typography variant="subtitle1" fontWeight={700} color={s.textColor}>{s.value}</Typography>
+                  <Typography variant="body2" color="text.secondary">{s.label}</Typography>
                 </Box>
               </Stack>
-            </CardContent>
-          </Card>
-
-          <Card elevation={0} sx={{ flex: 1, bgcolor: "background.paper", borderRadius: 4 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Avatar sx={{ bgcolor: colors.greenAccent[600], width: 56, height: 56 }}>
-                  <LightbulbIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h4" fontWeight={800} color={colors.greenAccent[500]}>
-                    {totalLights}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">Tổng số bóng đèn</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          <Card elevation={0} sx={{ flex: 1, bgcolor: "background.paper", borderRadius: 4 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Avatar sx={{ bgcolor: colors.redAccent[600], width: 56, height: 56 }}>
-                  <AccessTimeIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" fontWeight={700} color={colors.blueAccent[500]}>
-                    {format(currentDateTime, "HH:mm:ss")} {/* DÙNG currentDateTime */}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {format(currentDateTime, "dd/MM/yyyy")} {/* DÙNG currentDateTime */}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
+            </Paper>
+          ))}
         </Stack>
       </Fade>
 
-      {error && (
-        <Fade in={true}>
-          <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>
-            {error}
-          </Alert>
-        </Fade>
-      )}
-
-      {totalLights === 0 && (
-        <Alert severity="info" sx={{ mb: 3, borderRadius: 3 }}>
-          Chưa có bóng đèn. Vui lòng thêm trong trang <strong>Điều khiển đèn</strong>.
-        </Alert>
-      )}
+      {/* ERROR ALERT */}
+      {error && <Fade in><Alert severity="error" sx={{ mb:2, borderRadius:2 }}>{error}</Alert></Fade>}
+      {totalLights===0 && <Alert severity="info" sx={{ mb:2, borderRadius:2 }}>Chưa có bóng đèn. Thêm ở trang <strong>Điều khiển đèn</strong>.</Alert>}
 
       {/* CALENDAR */}
-      <Fade in={true} timeout={800}>
-        <CalendarCard elevation={0}>
+      <Fade in timeout={800}>
+        <CalendarCard elevation={0} sx={{ mb:2 }}>
           <FullCalendar
             ref={calendarRef}
-            height="70vh"
+            height="55vh"
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth", // ĐÃ THÊM LẠI listMonth
-            }}
+            headerToolbar={{ left:"prev,next today", center:"title", right:"dayGridMonth,timeGridWeek,timeGridDay,listMonth" }}
             initialView="dayGridMonth"
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
+            editable
+            selectable
+            selectMirror
+            dayMaxEvents
             select={handleDateClick}
             eventClick={handleEventClick}
             events={currentEvents}
-            eventDidMount={(info) => {
+            eventDidMount={(info)=>{
               const now = new Date();
               const eventEnd = info.event.end ? new Date(info.event.end) : new Date(4102444800000);
               const isActive = now < eventEnd;
               const isOn = info.event.extendedProps.action === "on";
-
-              info.el.style.background = isActive
-                ? (isOn ? "linear-gradient(135deg, #4caf50, #66bb6a)" : "linear-gradient(135deg, #f44336, #ef5350)")
-                : "linear-gradient(135deg, #9e9e9e, #bdbdbd)";
-              info.el.style.color = "#fff";
-              info.el.style.border = "none";
-              info.el.style.borderRadius = "8px";
-              info.el.style.fontWeight = "600";
+              info.el.style.background = isActive ? (isOn?"linear-gradient(135deg,#4caf50,#66bb6a)":"linear-gradient(135deg,#f44336,#ef5350)") : "linear-gradient(135deg,#9e9e9e,#bdbdbd)";
+              info.el.style.color="#fff";
+              info.el.style.border="none";
+              info.el.style.borderRadius="6px";
+              info.el.style.fontWeight="600";
+              info.el.style.fontSize="0.85rem";
             }}
-            slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-            buttonText={{
-              today: "Hôm nay",
-              month: "Tháng",
-              week: "Tuần",
-              day: "Ngày",
-              list: "Danh sách",
-            }}
+            slotLabelFormat={{ hour:"2-digit", minute:"2-digit", hour12:false }}
+            buttonText={{ today:"Hôm nay", month:"Tháng", week:"Tuần", day:"Ngày", list:"Danh sách" }}
           />
         </CalendarCard>
       </Fade>
 
-      {/* DIALOG */}
+      {/* DIALOG ĐẶT LỊCH (nhỏ hơn) */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: colors.primary[600], color: "#fff", py: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <AddTaskIcon />
+        <DialogTitle sx={{ bgcolor: colors.primary[600], color:"#fff", py:1.5 }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <AddTaskIcon fontSize="small" />
             <Typography variant="h6" fontWeight={700}>Lập lịch hẹn giờ</Typography>
           </Stack>
         </DialogTitle>
-
-        <DialogContent sx={{ bgcolor: colors.primary[400], pt: 3 }}>
-          {totalLights === 0 ? (
-            <Alert severity="warning">Không có bóng đèn để lập lịch!</Alert>
+        <DialogContent sx={{ bgcolor: colors.primary[400], pt:2, pb:2 }}>
+          {totalLights===0 ? (
+            <Alert severity="warning" sx={{ fontSize:"0.85rem" }}>Không có bóng đèn để lập lịch!</Alert>
           ) : (
-            <Stack spacing={3}>
-              <FormControl fullWidth>
-                <InputLabel sx={{ color: colors.grey[300] }}>Chọn bóng đèn</InputLabel>
-                <Select
-                  value={selectedLight}
-                  onChange={(e) => setSelectedLight(e.target.value)}
-                  label="Chọn bóng đèn"
-                  sx={{ color: colors.grey[100] }}
-                >
-                  {Object.entries(lightStates).map(([id, state]) => (
+            <Stack spacing={1.5}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ color: colors.grey[300], fontSize:"0.85rem" }}>Chọn bóng đèn</InputLabel>
+                <Select value={selectedLight} onChange={e=>setSelectedLight(e.target.value)} sx={{ color: colors.grey[100] }}>
+                  {Object.entries(lightStates).map(([id,state])=>(
                     <MenuItem key={id} value={id}>
                       <Stack direction="row" alignItems="center" spacing={1}>
-                        <LightbulbIcon fontSize="small" color={state.status === "on" ? "success" : "inherit"} />
+                        <LightbulbIcon fontSize="small" color={state.status==="on"?"success":"inherit"} />
                         <span>Đèn {id}</span>
-                        {state.status === "on" && <Chip label="Đang bật" size="small" color="success" />}
+                        {state.status==="on" && <Chip label="Đang bật" size="small" color="success" />}
                       </Stack>
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
 
-              <FormControl fullWidth>
-                <InputLabel sx={{ color: colors.grey[300] }}>Hành động</InputLabel>
-                <Select
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  label="Hành động"
-                  sx={{ color: colors.grey[100] }}
-                >
-                  <MenuItem value="on">
-                    <Chip label="BẬT" color="success" size="small" sx={{ mr: 1 }} />
-                    Bật đèn
-                  </MenuItem>
-                  <MenuItem value="off">
-                    <Chip label="TẮT" color="error" size="small" sx={{ mr: 1 }} />
-                    Tắt đèn
-                  </MenuItem>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ color: colors.grey[300], fontSize:"0.85rem" }}>Hành động</InputLabel>
+                <Select value={action} onChange={e=>setAction(e.target.value)} sx={{ color: colors.grey[100] }}>
+                  <MenuItem value="on"><Chip label="BẬT" color="success" size="small" sx={{ mr:1 }}/>Bật đèn</MenuItem>
+                  <MenuItem value="off"><Chip label="TẮT" color="error" size="small" sx={{ mr:1 }}/>Tắt đèn</MenuItem>
                 </Select>
               </FormControl>
 
@@ -354,68 +274,56 @@ const Calendar = () => {
                 label="Thời gian bắt đầu"
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={e=>setStartTime(e.target.value)}
                 fullWidth
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 300 }}
-                sx={{ input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
+                size="small"
+                InputLabelProps={{ shrink:true }}
+                inputProps={{ step:300 }}
+                sx={{ input:{color:colors.grey[100]}, label:{color:colors.grey[300]} }}
               />
 
-              {action === "on" && (
-                <>
-                  <TextField
-                    label="Thời gian kết thúc"
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    fullWidth
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ step: 300 }}
-                    sx={{ input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
+              {action==="on" && <>
+                <TextField
+                  label="Thời gian kết thúc"
+                  type="time"
+                  value={endTime}
+                  onChange={e=>setEndTime(e.target.value)}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink:true }}
+                  inputProps={{ step:300 }}
+                  sx={{ input:{color:colors.grey[100]}, label:{color:colors.grey[300]} }}
+                />
+                <Box>
+                  <Typography gutterBottom color={colors.grey[300]} variant="body2">
+                    Độ sáng: <strong>{brightness}%</strong>
+                  </Typography>
+                  <Slider
+                    value={brightness}
+                    onChange={(_,v)=>setBrightness(v)}
+                    min={1} max={100} valueLabelDisplay="auto"
+                    sx={{ color:colors.greenAccent[500], "& .MuiSlider-thumb":{bgcolor:colors.greenAccent[600]} }}
                   />
-
-                  <Box>
-                    <Typography gutterBottom color={colors.grey[300]}>
-                      Độ sáng: <strong>{brightness}%</strong>
-                    </Typography>
-                    <Slider
-                      value={brightness}
-                      onChange={(_, v) => setBrightness(v)}
-                      min={1}
-                      max={100}
-                      valueLabelDisplay="auto"
-                      sx={{
-                        color: colors.greenAccent[500],
-                        "& .MuiSlider-thumb": { bgcolor: colors.greenAccent[600] },
-                      }}
-                    />
-                  </Box>
-
-                  <Alert severity="info" icon={<ScheduleIcon />}>
-                    Đèn sẽ tự động tắt lúc <strong>{endTime}</strong> với độ sáng <strong>{brightness}%</strong>.
-                  </Alert>
-                </>
-              )}
-
-              {action === "off" && (
-                <Alert severity="warning" icon={<DeleteSweepIcon />}>
-                  Đèn sẽ bị <strong>tắt vĩnh viễn</strong> từ <strong>{startTime}</strong>. Có thể bật lại thủ công.
+                </Box>
+                <Alert severity="info" icon={<ScheduleIcon />} sx={{ fontSize:"0.85rem" }}>
+                  Đèn sẽ tự động tắt lúc <strong>{endTime}</strong> với độ sáng <strong>{brightness}%</strong>.
                 </Alert>
-              )}
+              </>}
+
+              {action==="off" && <Alert severity="warning" icon={<DeleteSweepIcon />} sx={{ fontSize:"0.85rem" }}>
+                Đèn sẽ bị <strong>tắt vĩnh viễn</strong> từ <strong>{startTime}</strong>. Có thể bật lại thủ công.
+              </Alert>}
             </Stack>
           )}
         </DialogContent>
-
-        <DialogActions sx={{ bgcolor: colors.primary[400], p: 2, gap: 1 }}>
-          <Button onClick={handleCloseDialog} variant="outlined" sx={{ borderRadius: 3 }}>
-            Hủy
-          </Button>
+        <DialogActions sx={{ bgcolor: colors.primary[400], p:1.5, gap:1 }}>
+          <Button onClick={handleCloseDialog} variant="outlined" sx={{ borderRadius:3 }}>Hủy</Button>
           <GradientButton
             onClick={handleConfirmEvent}
             variant="contained"
             color="success"
-            disabled={!selectedLight || !startTime || (action === "on" && (!endTime || brightness < 1))}
-            sx={{ bgcolor: colors.greenAccent[600], "&:hover": { bgcolor: colors.greenAccent[700] } }}
+            disabled={!selectedLight || !startTime || (action==="on" && (!endTime || brightness<1))}
+            sx={{ bgcolor: colors.greenAccent[600], "&:hover":{bgcolor:colors.greenAccent[700]} }}
           >
             Xác nhận
           </GradientButton>

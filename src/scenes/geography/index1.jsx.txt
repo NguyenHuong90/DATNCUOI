@@ -18,6 +18,8 @@ import {
   Avatar,
   Stack,
   Fade,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import Header from "../../components/Header";
 import { tokens } from "../../theme";
@@ -33,6 +35,7 @@ import LightbulbIcon from "@mui/icons-material/Lightbulb";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import CloudIcon from "@mui/icons-material/Cloud";
 import OpacityIcon from "@mui/icons-material/Opacity";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
 import EditLocationIcon from "@mui/icons-material/EditLocation";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 
@@ -92,12 +95,10 @@ const Geography = ({ isDashboard = false }) => {
         lamp_state === "ON"
           ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png"
           : "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
-      iconSize: [24, 40], // giảm kích thước
-      iconAnchor: [12, 40],
-      popupAnchor: [0, -40],
+      iconSize: [32, 52],
+      iconAnchor: [16, 52],
+      popupAnchor: [0, -52],
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      shadowSize: [30, 40],
-      shadowAnchor: [12, 40],
     });
 
   const bounds = useMemo(() => {
@@ -110,8 +111,8 @@ const Geography = ({ isDashboard = false }) => {
     const lats = validLights.map(([_, light]) => light.lat);
     const lngs = validLights.map(([_, light]) => light.lng);
     return [
-      [Math.min(...lats) - 0.01, Math.min(...lngs) - 0.01], // thu nhỏ bounds
-      [Math.max(...lats) + 0.01, Math.max(...lngs) + 0.01],
+      [Math.min(...lats) - 0.02, Math.min(...lngs) - 0.02],
+      [Math.max(...lats) + 0.02, Math.max(...lngs) + 0.02],
     ];
   }, [lightStates]);
 
@@ -177,11 +178,15 @@ const Geography = ({ isDashboard = false }) => {
     [openEditDialog]
   );
 
+  const centerOnLight = (lat, lng) => {
+    if (mapRef.current) mapRef.current.setView([lat, lng], 16, { animate: true });
+  };
+
   const getWeatherIcon = (prob) => {
-    if (prob === 0) return <LightbulbOutlinedIcon sx={{ color: colors.greenAccent[500], fontSize: 18 }} />;
-    if (prob < 30) return <CloudIcon sx={{ color: colors.grey[400], fontSize: 18 }} />;
-    if (prob < 70) return <OpacityIcon sx={{ color: colors.blueAccent[400], fontSize: 18 }} />;
-    return <CloudIcon sx={{ color: colors.redAccent[500], fontSize: 18 }} />;
+    if (prob === 0) return <LightbulbOutlinedIcon sx={{ color: colors.greenAccent[500], fontSize: 20 }} />;
+    if (prob < 30) return <CloudIcon sx={{ color: colors.grey[400], fontSize: 20 }} />;
+    if (prob < 70) return <OpacityIcon sx={{ color: colors.blueAccent[400], fontSize: 20 }} />;
+    return <CloudIcon sx={{ color: colors.redAccent[500], fontSize: 20 }} />;
   };
 
   const getEmergencySuggestion = (light, weather) => {
@@ -208,15 +213,97 @@ const Geography = ({ isDashboard = false }) => {
     }
   };
 
+  const totalLights = Object.keys(lightStates).length;
+  const onLights = Object.values(lightStates).filter(l => l.lamp_state === "ON").length;
+  const offLights = totalLights - onLights;
+
   return (
     <Box m={{ xs: "10px", md: "20px" }}>
       {!isDashboard && <Header title="BẢN ĐỒ GIÁM SÁT" subtitle="Hệ thống đèn & AI gợi ý điều khiển" />}
 
-      {/* MAP */}
+      {/* GIỮ NGUYÊN 3 CARD THỐNG KÊ NHƯ TRƯỚC */}
+      <Fade in={true} timeout={600}>
+        <StatsGrid>
+          <StatsCard elevation={0}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.blueAccent[600], width: 60, height: 60 }}>
+                  <MapIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h4" fontWeight={800} color={colors.primary[100]}>
+                    {totalLights}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Tổng đèn</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </StatsCard>
+
+          <StatsCard elevation={0}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.greenAccent[600], width: 60, height: 60 }}>
+                  <FlashOnIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h4" fontWeight={800} color={colors.greenAccent[500]}>
+                    {onLights}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Đèn bật</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </StatsCard>
+
+          <StatsCard elevation={0}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar sx={{ bgcolor: colors.redAccent[600], width: 60, height: 60 }}>
+                  <FlashOnIcon sx={{ fontSize: 32, color: "#fff" }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h4" fontWeight={800} color={colors.redAccent[500]}>
+                    {offLights}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Đèn tắt</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </StatsCard>
+        </StatsGrid>
+      </Fade>
+
+      {emergencyLights.length > 0 && (
+        <Fade in={true}>
+          <Alert
+            severity="error"
+            icon={<ErrorOutlineIcon />}
+            sx={{ mb: 2, borderRadius: 3, fontWeight: "bold", boxShadow: 6, bgcolor: "#fee2e2", color: "#991b1b" }}
+            action={
+              <Button color="error" variant="contained" size="small" onClick={handleEmergencyTurnOnAll}>
+                BẬT TẤT CẢ
+              </Button>
+            }
+          >
+            <strong>CẢNH BÁO:</strong> {emergencyLights.length} đèn TẮT trong điều kiện TỐI + MƯA!
+          </Alert>
+        </Fade>
+      )}
+
+      {error && (
+        <Fade in={true}>
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>
+            {error}
+          </Alert>
+        </Fade>
+      )}
+
+      {/* MAP + POPUP + GỢI Ý ĐÃ LÀM ĐẸP */}
       <Paper
         elevation={0}
         sx={{
-          height: isDashboard ? "350px" : "65vh",
+          height: isDashboard ? "350px" : "70vh",
           borderRadius: 3,
           overflow: "hidden",
           border: `1px solid ${colors.grey[700]}`,
@@ -243,11 +330,13 @@ const Geography = ({ isDashboard = false }) => {
               return (
                 <Marker key={lightId} position={[light.lat, light.lng]} icon={createCustomIcon(light.lamp_state)}>
                   <Popup>
-                    <Box sx={{ width: 220, p: 1.5, bgcolor: colors.primary[400], color: colors.grey[100] }}>
-                      <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+                    <Box sx={{ width: 300, p: 2, bgcolor: colors.primary[400], color: colors.grey[100] }}>
+                      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                         <Box display="flex" alignItems="center" gap={1}>
-                          <LightbulbIcon sx={{ fontSize: 18, color: light.lamp_state === "ON" ? colors.greenAccent[500] : colors.redAccent[500] }} />
-                          <Typography variant="subtitle2" fontWeight={600}>Đèn {lightId}</Typography>
+                          <LightbulbIcon sx={{ color: light.lamp_state === "ON" ? colors.greenAccent[500] : colors.redAccent[500] }} />
+                          <Typography variant="h6" fontWeight={600}>
+                            Đèn {lightId}
+                          </Typography>
                         </Box>
                         <Chip
                           label={light.lamp_state === "ON" ? "BẬT" : "TẮT"}
@@ -260,22 +349,22 @@ const Geography = ({ isDashboard = false }) => {
                         />
                       </Box>
 
-                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5, mb: 1 }}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mb: 2 }}>
                         <Box>
                           <Typography variant="caption" color={colors.grey[400]}>Độ sáng</Typography>
-                          <Typography variant="body2" color={colors.greenAccent[500]} fontWeight={600}>
+                          <Typography variant="body1" color={colors.greenAccent[500]} fontWeight={600}>
                             {light.lamp_dim || 0}%
                           </Typography>
                         </Box>
                         <Box>
                           <Typography variant="caption" color={colors.grey[400]}>Ánh sáng</Typography>
-                          <Typography variant="body2">{light.lux || 0} lux</Typography>
+                          <Typography variant="body1">{light.lux || 0} lux</Typography>
                         </Box>
                       </Box>
 
                       {weather && weather.length > 0 && (
                         <>
-                          <Typography variant="subtitle2" color={colors.grey[300]} mb={0.5}>Dự báo 3 ngày</Typography>
+                          <Typography variant="subtitle2" color={colors.grey[300]} mb={1}>Dự báo 3 ngày</Typography>
                           {weather.map((day, i) => (
                             <Box
                               key={i}
@@ -283,17 +372,17 @@ const Geography = ({ isDashboard = false }) => {
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
-                                p: 0.5,
+                                p: 1,
                                 borderRadius: 1,
                                 bgcolor: colors.grey[800],
-                                mb: 0.3,
+                                mb: 0.5,
                               }}
                             >
-                              <Box display="flex" alignItems="center" gap={0.5}>
+                              <Box display="flex" alignItems="center" gap={1}>
                                 {getWeatherIcon(day.rainProb)}
-                                <Typography variant="caption">{day.date}</Typography>
+                                <Typography variant="body2">{day.date}</Typography>
                               </Box>
-                              <Typography variant="caption" color={day.rainProb > 60 ? colors.redAccent[500] : colors.grey[300]}>
+                              <Typography variant="body2" color={day.rainProb > 60 ? colors.redAccent[500] : colors.grey[300]}>
                                 {day.rainProb}% mưa
                               </Typography>
                             </Box>
@@ -305,7 +394,8 @@ const Geography = ({ isDashboard = false }) => {
                         fullWidth
                         variant="outlined"
                         size="small"
-                        sx={{ mt: 1, borderColor: colors.grey[600], color: colors.grey[100], fontSize: 12 }}
+                        startIcon={<EditLocationIcon />}
+                        sx={{ mt: 2, borderColor: colors.grey[600], color: colors.grey[100] }}
                         onClick={() => {
                           setSelectedLight({ node_id: lightId, lat: light.lat, lng: light.lng });
                           setOpenEditDialog(true);
@@ -319,42 +409,42 @@ const Geography = ({ isDashboard = false }) => {
               );
             })}
 
-          {/* GỢI Ý KHẨN CẤP */}
+          {/* GỢI Ý KHẨN CẤP - ĐẸP, NỔI BẬT */}
           {emergencyLights.length > 0 && (
             <Box
               sx={{
                 position: "absolute",
                 bottom: 16,
                 right: 16,
-                width: 280, // giảm width
+                width: 340,
                 bgcolor: colors.primary[400],
                 border: `2px solid ${colors.redAccent[500]}`,
-                borderRadius: 2,
-                p: 1.5,
+                borderRadius: 3,
+                p: 2,
                 zIndex: 1000,
-                boxShadow: 6,
+                boxShadow: 8,
               }}
             >
-              <Box display="flex" alignItems="center" gap={1} mb={1}>
+              <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <ErrorOutlineIcon sx={{ color: colors.redAccent[500] }} />
-                <Typography variant="subtitle2" fontWeight={700} color={colors.redAccent[500]}>
+                <Typography variant="h6" fontWeight={700} color={colors.redAccent[500]}>
                   GỢI Ý KHẨN CẤP
                 </Typography>
               </Box>
 
-              <Box sx={{ maxHeight: 200, overflow: "auto" }}>
+              <Box sx={{ maxHeight: 300, overflow: "auto" }}>
                 {emergencyLights.map(([id, light]) => {
                   const weather = weatherData[id];
                   return (
                     <Card
                       key={id}
                       sx={{
-                        mb: 1,
+                        mb: 1.5,
                         bgcolor: "#fee2e2",
                         border: `1px solid ${colors.redAccent[500]}`,
                       }}
                     >
-                      <CardContent sx={{ p: 1 }}>
+                      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
                         <Typography variant="subtitle2" fontWeight={600} color="#991b1b">
                           Đèn {id}
                         </Typography>
@@ -366,7 +456,7 @@ const Geography = ({ isDashboard = false }) => {
                           variant="contained"
                           color="error"
                           size="small"
-                          sx={{ mt: 0.5, fontSize: 12 }}
+                          sx={{ mt: 1 }}
                           onClick={() => updateLightState(id, { lamp_state: "ON", lamp_dim: 100 })}
                         >
                           BẬT NGAY
@@ -385,14 +475,14 @@ const Geography = ({ isDashboard = false }) => {
       <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ bgcolor: colors.primary[600], color: "#fff" }}>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <EditLocationIcon fontSize="small" />
-            <Typography variant="subtitle1" fontWeight={700}>Sửa vị trí đèn</Typography>
+            <EditLocationIcon />
+            <Typography variant="h6" fontWeight={700}>Sửa vị trí đèn</Typography>
           </Stack>
         </DialogTitle>
-        <DialogContent sx={{ bgcolor: colors.primary[400], pt: 2 }}>
+        <DialogContent sx={{ bgcolor: colors.primary[400], pt: 3 }}>
           {selectedLight && (
-            <Stack spacing={2}>
-              <Typography color={colors.grey[100]} fontWeight={600} fontSize={14}>
+            <Stack spacing={3}>
+              <Typography color={colors.grey[100]} fontWeight={600}>
                 Đèn: {selectedLight.node_id}
               </Typography>
               <TextField
@@ -402,7 +492,6 @@ const Geography = ({ isDashboard = false }) => {
                 type="number"
                 inputProps={{ step: 0.000001 }}
                 fullWidth
-                size="small"
                 sx={{ input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
               />
               <TextField
@@ -412,18 +501,17 @@ const Geography = ({ isDashboard = false }) => {
                 type="number"
                 inputProps={{ step: 0.000001 }}
                 fullWidth
-                size="small"
                 sx={{ input: { color: colors.grey[100] }, label: { color: colors.grey[300] } }}
               />
-              <Alert severity="info" sx={{ fontSize: 12 }}>
+              <Alert severity="info">
                 Nhấp vào bản đồ để chọn vị trí chính xác.
               </Alert>
             </Stack>
           )}
         </DialogContent>
-        <DialogActions sx={{ bgcolor: colors.primary[400], p: 1.5 }}>
-          <Button onClick={() => setOpenEditDialog(false)} size="small">Hủy</Button>
-          <Button onClick={handleEditLight} variant="contained" sx={{ bgcolor: colors.greenAccent[600], fontSize: 12 }} size="small">
+        <DialogActions sx={{ bgcolor: colors.primary[400], p: 2 }}>
+          <Button onClick={() => setOpenEditDialog(false)}>Hủy</Button>
+          <Button onClick={handleEditLight} variant="contained" sx={{ bgcolor: colors.greenAccent[600] }}>
             Lưu
           </Button>
         </DialogActions>

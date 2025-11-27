@@ -29,48 +29,107 @@ const Topbar = () => {
       display="flex"
       justifyContent="space-between"
       alignItems="center"
-      p={1} // Giảm padding từ 2 xuống 1
+      px={2}
+      py={0.75}
       sx={{
         position: "sticky",
         top: 0,
         zIndex: 1100,
-        backgroundColor: colors.primary[500],
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)", // Thêm bóng nhẹ
+        backgroundColor: colors.primary[400],
+        boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+        minHeight: "50px",
       }}
     >
       {/* SEARCH BAR */}
       <Box
         display="flex"
-        backgroundColor={colors.primary[400]}
-        borderRadius="4px"
-        width="250px" // Giới hạn chiều rộng thanh tìm kiếm
+        backgroundColor={colors.primary[500]}
+        borderRadius="6px"
+        width="220px"
+        sx={{
+          border: `1px solid ${colors.primary[300]}`,
+          "&:focus-within": {
+            border: `1px solid ${colors.blueAccent[500]}`,
+          },
+        }}
       >
-        <InputBase sx={{ ml: 1, flex: 1, fontSize: "14px" }} placeholder="Tìm kiếm" />
-        <IconButton type="button" sx={{ p: 0.5 }}>
-          <SearchIcon fontSize="small" />
+        <InputBase 
+          sx={{ 
+            ml: 1.5, 
+            flex: 1, 
+            fontSize: "13px",
+            py: 0.5,
+          }} 
+          placeholder="Tìm kiếm..." 
+        />
+        <IconButton type="button" sx={{ p: 0.75 }}>
+          <SearchIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
 
       {/* ICONS */}
-      <Box display="flex">
-        <IconButton onClick={colorMode.toggleColorMode} size="small">
+      <Box display="flex" gap={0.5}>
+        <IconButton 
+          onClick={colorMode.toggleColorMode} 
+          size="small"
+          sx={{ 
+            p: 0.75,
+            "&:hover": {
+              bgcolor: colors.primary[500],
+            }
+          }}
+        >
           {theme.palette.mode === "dark" ? (
-            <DarkModeOutlinedIcon fontSize="small" />
+            <DarkModeOutlinedIcon sx={{ fontSize: 18 }} />
           ) : (
-            <LightModeOutlinedIcon fontSize="small" />
+            <LightModeOutlinedIcon sx={{ fontSize: 18 }} />
           )}
         </IconButton>
-        <IconButton size="small">
-          <NotificationsOutlinedIcon fontSize="small" />
+        <IconButton 
+          size="small"
+          sx={{ 
+            p: 0.75,
+            "&:hover": {
+              bgcolor: colors.primary[500],
+            }
+          }}
+        >
+          <NotificationsOutlinedIcon sx={{ fontSize: 18 }} />
         </IconButton>
-        <IconButton size="small">
-          <SettingsOutlinedIcon fontSize="small" />
+        <IconButton 
+          size="small"
+          sx={{ 
+            p: 0.75,
+            "&:hover": {
+              bgcolor: colors.primary[500],
+            }
+          }}
+        >
+          <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
         </IconButton>
-        <IconButton size="small">
-          <PersonOutlinedIcon fontSize="small" />
+        <IconButton 
+          size="small"
+          sx={{ 
+            p: 0.75,
+            "&:hover": {
+              bgcolor: colors.primary[500],
+            }
+          }}
+        >
+          <PersonOutlinedIcon sx={{ fontSize: 18 }} />
         </IconButton>
-        <IconButton onClick={handleLogout} color="error" size="small">
-          <LogoutOutlinedIcon fontSize="small" />
+        <IconButton 
+          onClick={handleLogout} 
+          color="error" 
+          size="small"
+          sx={{ 
+            p: 0.75,
+            "&:hover": {
+              bgcolor: "rgba(244, 67, 54, 0.1)",
+            }
+          }}
+        >
+          <LogoutOutlinedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
     </Box>
