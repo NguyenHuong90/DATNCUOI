@@ -134,7 +134,6 @@ const Sidebar = () => {
 
             <Typography variant="body2" fontSize="8px" color={colors.grey[300]} sx={{ m: "2px 0 1px 6px" }}>Charts</Typography>
             <Item title="Bar Chart" to="/bar" icon={<BarChartOutlinedIcon />} selected={selected} setSelected={setSelected} />
-            <Item title="Pie Chart" to="/pie" icon={<PieChartOutlineOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Geography Chart" to="/geography" icon={<MapOutlinedIcon />} selected={selected} setSelected={setSelected} />
 
             <Typography variant="body2" fontSize="8px" color={colors.grey[300]} sx={{ m: "2px 0 1px 6px" }}>Light</Typography>
