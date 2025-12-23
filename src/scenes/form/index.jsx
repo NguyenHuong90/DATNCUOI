@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
-  Box, Button, TextField, Select, MenuItem, Alert, FormControl, InputLabel,
-  Paper, Typography, Avatar, Stack, Chip, CircularProgress, IconButton, Tooltip, Fade,
+  Box, Button, TextField, Alert, Paper, Typography, Avatar, Stack, CircularProgress, IconButton, Tooltip, Fade,
 } from "@mui/material";
 import { Formik } from "formik";
 import * as yup from "yup";
@@ -9,8 +8,8 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import Header from "../../components/Header";
 import axios from "axios";
 import { styled } from "@mui/material/styles";
-import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import GoogleIcon from "@mui/icons-material/Google"; // ← THÊM DUY NHẤT DÒNG NÀY
 import { useNavigate } from "react-router-dom";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -38,69 +37,57 @@ const GradientButton = styled(Button)(({ theme }) => ({
   "&:disabled": { background: "#90caf9", opacity: 0.7 },
 }));
 
+// THÊM STYLE RIÊNG CHO NÚT GOOGLE (giữ màu chuẩn Google)
+const GoogleButton = styled(Button)(({ theme }) => ({
+  borderRadius: "8px",
+  border: "1px solid #dadce0",
+  backgroundColor: "#fff",
+  color: "#3c4043",
+  textTransform: "none",
+  fontWeight: 500,
+  "&:hover": {
+    backgroundColor: "#f8f9fa",
+    border: "1px solid #dadce0",
+  },
+}));
+
 const Form = () => {
   const isNonMobile = useMediaQuery("(min-width:600px)");
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
 
-  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-  const isAdmin = currentUser?.role === "admin";
-
-  const handleFormSubmit = async (values, { resetForm }) => {
-    if (!isAdmin) return alert("Chỉ admin mới có quyền tạo người dùng!");
+  const handleFormSubmit = async (values) => {
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("token");
-      const { confirmPassword, ...dataToSend } = values;
-      await axios.post(`${API_BASE}/api/auth/register`, dataToSend, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      resetForm();
-      alert("Người dùng đã được tạo thành công!");
+      const response = await axios.post(`${API_BASE}/api/auth/login`, values);
+      const { token, refreshToken, user } = response.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("refreshToken", refreshToken);
+      localStorage.setItem("currentUser", JSON.stringify(user));
+
       navigate("/team");
     } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        window.location.href = "/login";
-      } else {
-        alert(err.response?.data?.message || "Không thể tạo người dùng!");
-      }
+      alert(err.response?.data?.message || "Đăng nhập thất bại!");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const phoneRegExp = /^(0[1-9][0-9]{8,9})$/;
+  // THÊM HÀM XỬ LÝ GOOGLE LOGIN (chỉ redirect sang backend)
+  const handleGoogleLogin = () => {
+    window.location.href = `${API_BASE}/api/auth/google`;
+  };
 
   const checkoutSchema = yup.object().shape({
-    firstName: yup.string().trim().required("Vui lòng nhập họ").min(2).max(50).matches(/^[a-zA-ZÀ-ỹ\s]+$/),
-    lastName: yup.string().trim().required("Vui lòng nhập tên").min(2).max(50).matches(/^[a-zA-ZÀ-ỹ\s]+$/),
-    email: yup.string().trim().email("Email không hợp lệ").required("Vui lòng nhập email").max(100),
-    contact: yup.string().trim().matches(phoneRegExp, "SĐT phải 10-11 số, bắt đầu bằng 0").required("Vui lòng nhập số điện thoại"),
-    address1: yup.string().trim().required("Vui lòng nhập địa chỉ").min(5).max(200),
-    username: yup.string().trim().required("Vui lòng nhập tên tài khoản").min(4).max(30).matches(/^[a-zA-Z0-9_]+$/),
-    password: yup.string().trim().required("Vui lòng nhập mật khẩu").min(6).matches(/^(?=.*[A-Za-z])(?=.*\d)/),
-    confirmPassword: yup.string().trim().required("Vui lòng xác nhận mật khẩu").oneOf([yup.ref("password")], "Mật khẩu không khớp"),
-    role: yup.string().required("Vui lòng chọn vai trò").oneOf(["admin", "user"]),
+    username: yup.string().required("Vui lòng nhập tên tài khoản"),
+    password: yup.string().required("Vui lòng nhập mật khẩu"),
   });
 
   const initialValues = {
-    firstName: "", lastName: "", email: "", contact: "", address1: "",
-    username: "", password: "", confirmPassword: "", role: "user",
+    username: "",
+    password: "",
   };
-
-  if (!isAdmin) {
-    return (
-      <Box m={{ xs: 1, md: 2 }}>
-        <Header title="TẠO NGƯỜI DÙNG" subtitle="Tạo hồ sơ người dùng mới" />
-        <Fade in={true} timeout={600}>
-          <Alert severity="warning" sx={{ mt: 2, borderRadius: 2, fontSize: "0.8rem" }}>
-            Bạn không có quyền admin để tạo người dùng.
-          </Alert>
-        </Fade>
-      </Box>
-    );
-  }
 
   return (
     <Box m={{ xs: 1, md: 2 }}>
@@ -110,53 +97,83 @@ const Form = () => {
             <ArrowBackIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Header title="TẠO NGƯỜI DÙNG MỚI" subtitle="Thêm thành viên vào hệ thống" />
+        <Header title="ĐĂNG NHẬP" subtitle="Truy cập vào hệ thống" />
       </Box>
 
       <Fade in={true} timeout={500}>
         <FormContainer elevation={0}>
           <Box textAlign="center" mb={2}>
             <Avatar sx={{ width: 50, height: 50, mx: "auto", mb: 1, bgcolor: "primary.main" }}>
-              <PersonAddAlt1Icon sx={{ fontSize: 28 }} />
+              <ArrowBackIcon sx={{ fontSize: 28 }} /> {/* giữ icon cũ nếu bạn muốn, hoặc thay bằng LockIcon */}
             </Avatar>
-            <Typography variant="subtitle2" fontWeight={600}>Điền thông tin người dùng</Typography>
-            <Typography variant="body2" color="text.secondary" mt={0.5}>Tạo tài khoản mới với đầy đủ quyền hạn</Typography>
+            <Typography variant="subtitle2" fontWeight={600}>Chào mừng trở lại</Typography>
+            <Typography variant="body2" color="text.secondary" mt={0.5}>
+              Đăng nhập bằng tài khoản hoặc Google
+            </Typography>
           </Box>
 
-          <Formik initialValues={initialValues} validationSchema={checkoutSchema} onSubmit={handleFormSubmit}>
-            {({ values, errors, touched, handleBlur, handleChange, handleSubmit, setFieldValue }) => (
+          <Formik
+            initialValues={initialValues}
+            validationSchema={checkoutSchema}
+            onSubmit={handleFormSubmit}
+          >
+            {({
+              values,
+              errors,
+              touched,
+              handleBlur,
+              handleChange,
+              handleSubmit,
+              isSubmitting,
+            }) => (
               <form onSubmit={handleSubmit}>
                 <Box display="grid" gap="10px" gridTemplateColumns={isNonMobile ? "repeat(2, 1fr)" : "1fr"}>
-                  <TextField fullWidth size="small" label="Họ" name="firstName" value={values.firstName} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.firstName && !!errors.firstName} helperText={touched.firstName && errors.firstName} />
-                  <TextField fullWidth size="small" label="Tên" name="lastName" value={values.lastName} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.lastName && !!errors.lastName} helperText={touched.lastName && errors.lastName} />
-                  <TextField fullWidth size="small" label="Email" name="email" type="email" value={values.email} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.email && !!errors.email} helperText={touched.email && errors.email} />
-                  <TextField fullWidth size="small" label="Số điện thoại" name="contact" value={values.contact} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.contact && !!errors.contact} helperText={touched.contact && errors.contact} />
-                  <TextField fullWidth size="small" label="Địa chỉ" name="address1" value={values.address1} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.address1 && !!errors.address1} helperText={touched.address1 && errors.address1} sx={{ gridColumn: "span 2" }} />
-                  <TextField fullWidth size="small" label="Tên tài khoản" name="username" value={values.username} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.username && !!errors.username} helperText={touched.username && errors.username} />
-                  <TextField fullWidth size="small" label="Mật khẩu" name="password" type="password" value={values.password} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.password && !!errors.password} helperText={touched.password && errors.password} />
-                  <TextField fullWidth size="small" label="Xác nhận mật khẩu" name="confirmPassword" type="password" value={values.confirmPassword} onChange={handleChange} onBlur={handleBlur}
-                    error={!!touched.confirmPassword && !!errors.confirmPassword} helperText={touched.confirmPassword && errors.confirmPassword} />
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Vai trò</InputLabel>
-                    <Select value={values.role} onChange={(e) => setFieldValue("role", e.target.value)} label="Vai trò">
-                      <MenuItem value="user"><Chip label="USER" color="primary" size="small" sx={{ mr: 1 }} />Người dùng</MenuItem>
-                      <MenuItem value="admin"><Chip label="ADMIN" color="success" size="small" sx={{ mr: 1 }} />Quản trị viên</MenuItem>
-                    </Select>
-                  </FormControl>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Tên tài khoản"
+                    name="username"
+                    value={values.username}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={!!touched.username && !!errors.username}
+                    helperText={touched.username && errors.username}
+                    sx={{ gridColumn: isNonMobile ? "span 2" : "1" }}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Mật khẩu"
+                    name="password"
+                    type="password"
+                    value={values.password}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={!!touched.password && !!errors.password}
+                    helperText={touched.password && errors.password}
+                    sx={{ gridColumn: isNonMobile ? "span 2" : "1" }}
+                  />
                 </Box>
 
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mt={2}>
-                  <Button variant="outlined" color="inherit" onClick={() => navigate(-1)} sx={{ borderRadius: 8, px: 2, fontSize: "0.75rem" }}>Hủy bỏ</Button>
-                  <GradientButton type="submit" disabled={submitting} startIcon={submitting ? <CircularProgress size={16} /> : <PersonAddAlt1Icon fontSize="small" />}>
-                    {submitting ? "Đang tạo..." : "Tạo người dùng"}
+                <Stack direction="column" spacing={2} mt={3}>
+                  <GradientButton
+                    type="submit"
+                    fullWidth
+                    disabled={submitting || isSubmitting}
+                    startIcon={submitting ? <CircularProgress size={16} /> : null}
+                  >
+                    {submitting ? "Đang đăng nhập..." : "Đăng nhập"}
                   </GradientButton>
+
+                  {/* CHỈ THÊM NÚT GOOGLE Ở ĐÂY */}
+                  <GoogleButton
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<GoogleIcon />}
+                    onClick={handleGoogleLogin}
+                  >
+                    Đăng nhập bằng Google
+                  </GoogleButton>
                 </Stack>
               </form>
             )}
