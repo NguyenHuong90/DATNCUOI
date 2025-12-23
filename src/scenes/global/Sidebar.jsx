@@ -16,6 +16,7 @@ import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
+import AutoGraphIcon from "@mui/icons-material/AutoGraph";
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -138,6 +139,7 @@ const Sidebar = () => {
 
             <Typography variant="body2" fontSize="8px" color={colors.grey[300]} sx={{ m: "2px 0 1px 6px" }}>Light</Typography>
             <Item title="Light Control" to="/light-control" icon={<LightbulbOutlinedIcon />} selected={selected} setSelected={setSelected} />
+            <Item title="ML Prediction" to="/ml-prediction" icon={<AutoGraphIcon />} selected={selected} setSelected={setSelected} />
 
             <Typography variant="body2" fontSize="8px" color={colors.grey[300]} sx={{ m: "2px 0 1px 6px" }}>History</Typography>
             <Item title="History" to="/history" icon={<HistoryOutlinedIcon />} selected={selected} setSelected={setSelected} />

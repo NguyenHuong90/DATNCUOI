@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
-  useTheme,
   Paper,
   Button,
   Alert,
@@ -14,6 +13,12 @@ import {
   Stack,
   Pagination,
   Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 import Header from "../../components/Header";
 import { format } from "date-fns";
@@ -25,9 +30,6 @@ import Papa from "papaparse";
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const History = () => {
-  const theme = useTheme();
-  const colors = theme.palette;
-
   const [currentTime, setCurrentTime] = useState(new Date());
   const [apiError, setApiError] = useState("");
   const [logs, setLogs] = useState([]);
@@ -172,63 +174,84 @@ const History = () => {
   }, [filteredLogs]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", p: 0.5, gap: 0.5 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", p: 0.5, gap: 0.5, bgcolor: "#0f121a" }}>
       {/* Header */}
       <Header title="LỊCH SỬ HOẠT ĐỘNG" subtitle="Theo dõi chi tiết mọi thao tác hệ thống" />
 
       {/* Thời gian + Nút */}
-      <Paper sx={{ p: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "#333", borderRadius: 1 }}>
-        <Typography fontSize="0.7rem" color="#fff">
+      <Paper sx={{ p: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "#151a27", borderRadius: 1 }}>
+        <Typography fontSize="0.7rem" color="#e0e0e0">
           <strong>Thời gian hiện tại:</strong> {format(currentTime, "dd/MM/yyyy HH:mm:ss")} (+07)
         </Typography>
         <Box sx={{ display: "flex", gap: 0.5 }}>
-          <Button variant="contained" color="error" size="small" startIcon={<DeleteIcon />} onClick={handleClearHistory} disabled={!isAdmin || filteredLogs.length === 0} sx={{ fontSize: "0.65rem", py: 0.3 }}>
+          <Button variant="contained" color="error" size="small" startIcon={<DeleteIcon />} onClick={handleClearHistory} disabled={!isAdmin || filteredLogs.length === 0} sx={{ fontSize: "0.65rem", py: 0.3, bgcolor: '#f44336', '&:hover': { bgcolor: '#d32f2f' } }}>
             Xóa tất cả
           </Button>
-          <Button variant="contained" size="small" startIcon={<DownloadIcon />} onClick={handleExportCSV} sx={{ fontSize: "0.65rem", py: 0.3 }}>
+          <Button variant="contained" size="small" startIcon={<DownloadIcon />} onClick={handleExportCSV} sx={{ fontSize: "0.65rem", py: 0.3, bgcolor: '#6870fa', '&:hover': { bgcolor: '#5a5fd4' } }}>
             Xuất CSV
           </Button>
         </Box>
       </Paper>
 
-      {apiError && <Alert severity="error" sx={{ fontSize: "0.7rem" }}>{apiError}</Alert>}
+      {apiError && <Alert severity="error" sx={{ fontSize: "0.7rem", bgcolor: '#3e0000', color: '#ffcccc' }}>{apiError}</Alert>}
 
       {/* Table */}
-      <Paper sx={{ flexGrow: 1, borderRadius: 1, overflow: "auto", mt: 0.5, bgcolor: "#222" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.7rem", color: "#fff" }}>
-          <thead>
-            <tr style={{ backgroundColor: "#222" }}>
-              {["Người dùng","Hành động","Nguồn","Đèn","Bắt đầu","Kết thúc","Độ sáng","Năng lượng","IP","Thời gian","Hành động"].map(h => (
-                <th key={h} style={{ padding: "4px 6px", textAlign: "left", borderBottom: "1px solid #555", color: "#fff", backgroundColor: "#222" }}>{h}</th>
+      <Paper sx={{ flexGrow: 1, borderRadius: 1, overflow: "auto", mt: 0.5, bgcolor: "#151a27" }}>
+        <TableContainer>
+          <Table sx={{ minWidth: 650 }}>
+            <TableHead sx={{ bgcolor: '#1e2538' }}>
+              <TableRow>
+                {["Người dùng", "Hành động", "Nguồn", "Đèn", "Bắt đầu", "Kết thúc", "Độ sáng", "Năng lượng", "IP", "Thời gian", "Hành động"].map((h) => (
+                  <TableCell key={h} sx={{ fontWeight: 'bold', color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {h}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredLogs.map((log) => (
+                <TableRow
+                  key={log._id}
+                  hover
+                  sx={{
+                    '&:nth-of-type(odd)': { bgcolor: '#1a2033' },
+                    '&:hover': { bgcolor: '#2a3142' },
+                  }}
+                >
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>{log.userId?.username || "Unknown"}</TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>{actionLabels[log.action] || log.action}</TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>{sourceLabels[log.source] || log.source || "N/A"}</TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>{log.details?.nodeId || log.details?.gwId || "N/A"}</TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {log.details?.startTime ? format(new Date(log.details.startTime), "HH:mm") : "—"}
+                  </TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {log.details?.endTime ? format(new Date(log.details.endTime), "HH:mm") : "—"}
+                  </TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {log.details?.lampDim !== undefined ? `${log.details.lampDim}%` : "—"}
+                  </TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {log.details?.energyConsumed !== undefined ? `${log.details.energyConsumed} kWh` : "—"}
+                  </TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>{log.ip || "—"}</TableCell>
+                  <TableCell sx={{ color: '#e0e0e0', fontSize: '0.7rem', p: 0.5 }}>
+                    {format(new Date(log.timestamp), "dd/MM HH:mm")}
+                  </TableCell>
+                  <TableCell sx={{ p: 0.5 }}>
+                    <Tooltip title={isAdmin ? "Xóa mục này" : "Chỉ admin mới được xóa"}>
+                      <span>
+                        <IconButton size="small" onClick={() => handleDeleteLog(log._id)} disabled={!isAdmin}>
+                          <DeleteIcon fontSize="small" sx={{ color: '#e0e0e0' }} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLogs.map(log => (
-              <tr key={log._id} style={{ borderBottom: "1px solid #555", backgroundColor: "#222" }}>
-                <td style={{ padding: "4px 6px" }}>{log.userId?.username || "Unknown"}</td>
-                <td style={{ padding: "4px 6px" }}>{actionLabels[log.action] || log.action}</td>
-                <td style={{ padding: "4px 6px" }}>{sourceLabels[log.source] || log.source || "N/A"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.details?.nodeId || log.details?.gwId || "N/A"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.details?.startTime ? format(new Date(log.details.startTime), "HH:mm") : "—"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.details?.endTime ? format(new Date(log.details.endTime), "HH:mm") : "—"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.details?.lampDim !== undefined ? `${log.details.lampDim}%` : "—"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.details?.energyConsumed !== undefined ? `${log.details.energyConsumed} kWh` : "—"}</td>
-                <td style={{ padding: "4px 6px" }}>{log.ip || "—"}</td>
-                <td style={{ padding: "4px 6px" }}>{format(new Date(log.timestamp), "dd/MM HH:mm")}</td>
-                <td style={{ padding: "4px 6px" }}>
-                  <Tooltip title={isAdmin ? "Xóa mục này" : "Chỉ admin mới được xóa"}>
-                    <span>
-                      <IconButton size="small" onClick={() => handleDeleteLog(log._id)} disabled={!isAdmin}>
-                        <DeleteIcon fontSize="small" sx={{ color: "#fff" }} />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Paper>
 
       {/* Pagination */}

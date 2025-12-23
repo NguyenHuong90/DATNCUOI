@@ -18,8 +18,8 @@ import Calendar from "./scenes/calendar/calendar";
 import Geography from "./scenes/geography";
 import LightControl from "./scenes/lightcontrol/LightControl";
 import History from "./scenes/history/History";
-
 import ProtectedRoute from "./components/ProtectedRoute";
+import MLPrediction from "./scenes/ml-prediction";
 
 function App() {
   const [theme, colorMode] = useMode();
@@ -40,6 +40,7 @@ function App() {
           <Route path="/geography" element={<Geography />} />
           <Route path="/light-control" element={<LightControl />} />
           <Route path="/history" element={<History />} />
+          <Route path="/ml-prediction" element={<MLPrediction />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
