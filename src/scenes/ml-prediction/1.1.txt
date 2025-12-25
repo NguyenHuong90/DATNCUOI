@@ -1,0 +1,761 @@
+// src/scenes/ml-prediction/index.jsx
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  TextField,
+  IconButton,
+  Paper,
+  Divider,
+  Avatar,
+  Chip,
+  Button,
+} from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import PersonIcon from '@mui/icons-material/Person';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import BoltIcon from '@mui/icons-material/Bolt';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import { useLightState } from '../../hooks/useLightState';
+
+const MLPrediction = () => {
+  const { lightStates, lightHistory } = useLightState();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const quickQuestions = [
+    "Phân tích toàn bộ hệ thống",
+    "Đèn nào cần bảo trì?",
+    "Tối ưu hóa chi phí điện",
+    "So sánh hiệu suất các đèn",
+    "Dự đoán xu hướng tiêu thụ",
+    "Phát hiện bất thường"
+  ];
+
+  const calculateEnergy = (lamp) => {
+    const voltage = 220;
+    const power = (lamp.current_a || 0) * voltage;
+    const efficiency = (lamp.lamp_dim || 0) / 100;
+    return ((power * efficiency) / 1000).toFixed(3);
+  };
+
+  const getLampContext = () => {
+    const lamps = Object.values(lightStates);
+    const onLamps = lamps.filter(l => l.lamp_state === 'ON');
+    const offLamps = lamps.filter(l => l.lamp_state === 'OFF');
+    
+    const energyData = onLamps.map(l => ({
+      id: l.node_id,
+      energy: parseFloat(calculateEnergy(l)),
+      brightness: l.lamp_dim,
+      current: l.current_a,
+      lux: l.lux
+    }));
+
+    const totalEnergy = energyData.reduce((sum, l) => sum + l.energy, 0);
+    const avgBrightness = onLamps.reduce((sum, l) => sum + l.lamp_dim, 0) / (onLamps.length || 1);
+
+    return {
+      total: lamps.length,
+      on: onLamps.length,
+      off: offLamps.length,
+      lamps: lamps.map(l => ({
+        id: l.node_id,
+        state: l.lamp_state,
+        brightness: l.lamp_dim,
+        energy: calculateEnergy(l),
+        current: l.current_a,
+        lux: l.lux,
+        lat: l.lat,
+        lng: l.lng
+      })),
+      totalEnergy: totalEnergy.toFixed(3),
+      avgBrightness: avgBrightness.toFixed(1),
+      energyData
+    };
+  };
+
+  const generateSmartResponse = (question, context) => {
+    const q = question.toLowerCase();
+    
+    // 1. Phân tích toàn bộ hệ thống
+    if (q.includes('phân tích') || q.includes('tổng quan') || q.includes('hệ thống')) {
+      const inefficientLamps = context.lamps.filter(l => 
+        l.state === 'ON' && parseFloat(l.energy) > 0.012
+      );
+      const overbrightLamps = context.lamps.filter(l => 
+        l.state === 'ON' && l.lux > 100 && l.brightness > 60
+      );
+      
+      return `📊 **PHÂN TÍCH TOÀN BỘ HỆ THỐNG**
+
+🔋 **Tình trạng hoạt động:**
+• Tổng số đèn: ${context.total}
+• Đang hoạt động: ${context.on} đèn (${((context.on/context.total)*100).toFixed(1)}%)
+• Đang tắt: ${context.off} đèn
+• Độ sáng trung bình: ${context.avgBrightness}%
+
+⚡ **Năng lượng:**
+• Tổng tiêu thụ: ${context.totalEnergy} kWh/h
+• Chi phí ước tính: ${(parseFloat(context.totalEnergy) * 2500).toFixed(0)} VNĐ/giờ
+• Tiêu thụ trung bình/đèn: ${(parseFloat(context.totalEnergy) / (context.on || 1)).toFixed(3)} kWh/h
+
+${inefficientLamps.length > 0 ? `
+⚠️ **Cảnh báo:**
+${inefficientLamps.map(l => `• Đèn ${l.id}: Tiêu thụ cao (${l.energy} kWh/h)`).join('\n')}
+` : '✅ Tất cả đèn hoạt động hiệu quả!'}
+
+${overbrightLamps.length > 0 ? `
+💡 **Đề xuất:**
+${overbrightLamps.map(l => `• Đèn ${l.id}: Môi trường sáng (${l.lux} lux), giảm độ sáng xuống 40-50%`).join('\n')}
+
+🎯 Tiết kiệm ước tính: ${(overbrightLamps.length * 0.003 * 2500 * 24 * 30).toFixed(0)} VNĐ/tháng
+` : ''}`;
+    }
+
+    // 2. Bảo trì và phát hiện bất thường
+    if (q.includes('bảo trì') || q.includes('bất thường') || q.includes('lỗi')) {
+      const abnormalLamps = context.lamps.filter(l => {
+        if (l.state === 'OFF') return false;
+        const expectedCurrent = (l.brightness / 100) * 0.068;
+        return Math.abs(l.current - expectedCurrent) > 0.01;
+      });
+
+      const highCurrentLamps = context.lamps.filter(l => 
+        l.state === 'ON' && l.current > 0.07
+      );
+
+      if (abnormalLamps.length === 0 && highCurrentLamps.length === 0) {
+        return `✅ **HỆ THỐNG HOẠT ĐỘNG BÌN H THƯỜNG**
+
+🔧 Không phát hiện dấu hiệu bất thường
+🔋 Tất cả đèn hoạt động ổn định
+📅 Khuyến nghị kiểm tra định kỳ sau 30 ngày`;
+      }
+
+      return `🔧 **PHÂN TÍCH BẢO TRÌ**
+
+${abnormalLamps.length > 0 ? `
+⚠️ **Cần kiểm tra:**
+${abnormalLamps.map(l => `• Đèn ${l.id}: Dòng điện bất thường (${l.current.toFixed(4)}A vs dự kiến ${((l.brightness / 100) * 0.068).toFixed(4)}A)`).join('\n')}
+
+🔍 Nguyên nhân có thể:
+- Bóng đèn bị hỏng
+- Ballast hoạt động kém
+- Tiếp xúc điện không tốt
+` : ''}
+
+${highCurrentLamps.length > 0 ? `
+⚡ **Cảnh báo quá tải:**
+${highCurrentLamps.map(l => `• Đèn ${l.id}: ${(l.current * 1000).toFixed(1)}mA (vượt ngưỡng)`).join('\n')}
+
+📋 Hành động khuyến nghị:
+1. Kiểm tra ngay trong 24h
+2. Xem xét thay thế thiết bị
+3. Đo kiểm điện áp đầu vào
+` : ''}
+
+📅 Lịch bảo trì đề xuất: ${new Date(Date.now() + 7*24*60*60*1000).toLocaleDateString('vi-VN')}`;
+    }
+
+    // 3. Tối ưu chi phí
+    if (q.includes('tối ưu') || q.includes('tiết kiệm') || q.includes('chi phí')) {
+      const wastefulLamps = context.lamps.filter(l => 
+        l.state === 'ON' && (l.lux > 150 || (l.lux > 80 && l.brightness > 70))
+      );
+
+      const optimalBrightness = wastefulLamps.map(l => {
+        let recommend = l.brightness;
+        if (l.lux > 200) recommend = Math.max(30, l.brightness - 40);
+        else if (l.lux > 150) recommend = Math.max(40, l.brightness - 30);
+        else if (l.lux > 100) recommend = Math.max(50, l.brightness - 20);
+        else recommend = Math.max(60, l.brightness - 10);
+        return { ...l, recommend, saving: (l.brightness - recommend) / 100 * 0.015 };
+      });
+
+      const totalSaving = optimalBrightness.reduce((sum, l) => sum + l.saving, 0);
+      const monthlySaving = totalSaving * 24 * 30 * 2500;
+
+      if (wastefulLamps.length === 0) {
+        return `💰 **HỆ THỐNG ĐÃ TỐI ƯU**
+
+✅ Không phát hiện lãng phí năng lượng
+📊 Chi phí hiện tại: ${(parseFloat(context.totalEnergy) * 24 * 30 * 2500).toFixed(0)} VNĐ/tháng
+🎯 Hệ thống đang hoạt động hiệu quả`;
+      }
+
+      return `💰 **KẾ HOẠCH TỐI ƯU CHI PHÍ**
+
+🎯 Phát hiện ${wastefulLamps.length} đèn có thể tối ưu:
+
+${optimalBrightness.map(l => `
+📍 **Đèn ${l.id}:**
+• Hiện tại: ${l.brightness}% trong môi trường ${l.lux} lux
+• Đề xuất: ${l.recommend}% (giảm ${l.brightness - l.recommend}%)
+• Tiết kiệm: ${(l.saving * 2500 * 24 * 30).toFixed(0)} VNĐ/tháng
+`).join('\n')}
+
+💵 **TỔNG KẾT:**
+• Tiết kiệm năng lượng: ${(totalSaving * 24 * 30).toFixed(2)} kWh/tháng
+• Giảm chi phí: ${monthlySaving.toFixed(0)} VNĐ/tháng
+• Giảm phát thải CO2: ${(totalSaving * 24 * 30 * 0.5).toFixed(1)} kg/tháng
+
+📅 Áp dụng ngay để tối ưu hóa!`;
+    }
+
+    // 4. So sánh hiệu suất
+    if (q.includes('so sánh') || q.includes('hiệu suất')) {
+      const rankedLamps = context.lamps
+        .filter(l => l.state === 'ON')
+        .map(l => ({
+          ...l,
+          efficiency: (l.brightness / 100) / parseFloat(l.energy) || 0
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency);
+
+      return `📊 **SO SÁNH HIỆU SUẤT CÁC ĐÈN**
+
+🏆 **Top hiệu quả nhất:**
+${rankedLamps.slice(0, 3).map((l, i) => `
+${i+1}. Đèn ${l.id}
+   • Độ sáng: ${l.brightness}%
+   • Tiêu thụ: ${l.energy} kWh/h
+   • Hiệu suất: ${(l.efficiency * 100).toFixed(1)}/100
+`).join('\n')}
+
+⚠️ **Cần cải thiện:**
+${rankedLamps.slice(-2).map(l => `
+• Đèn ${l.id}: Hiệu suất ${(l.efficiency * 100).toFixed(1)}/100
+  → Đề xuất: Kiểm tra bóng đèn, có thể cần thay thế
+`).join('\n')}
+
+📈 **Phân tích:**
+• Chênh lệch hiệu suất: ${((rankedLamps[0]?.efficiency || 0) / (rankedLamps[rankedLamps.length-1]?.efficiency || 1) * 100 - 100).toFixed(1)}%
+• Đèn kém nhất tiêu thụ nhiều hơn ${(((rankedLamps[rankedLamps.length-1]?.energy || 0) / (rankedLamps[0]?.energy || 1) - 1) * 100).toFixed(1)}%`;
+    }
+
+    // 5. Dự đoán xu hướng
+    if (q.includes('dự đoán') || q.includes('xu hướng') || q.includes('tương lai')) {
+      const currentCost = parseFloat(context.totalEnergy) * 24 * 30 * 2500;
+      const optimizedCost = currentCost * 0.75;
+
+      return `📈 **DỰ ĐOÁN XU HƯỚNG TIÊU THỤ**
+
+📊 **Tháng này:**
+• Dự kiến: ${(parseFloat(context.totalEnergy) * 24 * 30).toFixed(2)} kWh
+• Chi phí: ${currentCost.toFixed(0)} VNĐ
+• CO2: ${(parseFloat(context.totalEnergy) * 24 * 30 * 0.5).toFixed(1)} kg
+
+🔮 **Dự báo 3 tháng tới:**
+• Nếu giữ nguyên: ${(currentCost * 3).toFixed(0)} VNĐ
+• Nếu tối ưu 25%: ${(optimizedCost * 3).toFixed(0)} VNĐ
+• Tiết kiệm: ${((currentCost - optimizedCost) * 3).toFixed(0)} VNĐ
+
+💡 **Khuyến nghị:**
+1. Điều chỉnh độ sáng theo thời gian thực
+2. Tắt đèn khi ánh sáng môi trường > 200 lux
+3. Bảo trì định kỳ mỗi 2 tháng
+4. Xem xét nâng cấp đèn LED hiệu suất cao
+
+🎯 Mục tiêu: Giảm 20-30% chi phí trong 6 tháng`;
+    }
+
+    // 6. Câu hỏi về đèn cụ thể
+    if (q.includes('đèn') && /\d+/.test(q)) {
+      const lampId = q.match(/\d+/)[0];
+      const lamp = context.lamps.find(l => l.id === lampId);
+      
+      if (!lamp) {
+        return `❌ Không tìm thấy đèn ${lampId}. 
+
+📋 Danh sách đèn hiện có: ${context.lamps.map(l => l.id).join(', ')}`;
+      }
+
+      const expectedCurrent = (lamp.brightness / 100) * 0.068;
+      const currentDiff = Math.abs(lamp.current - expectedCurrent);
+      const isAbnormal = currentDiff > 0.01;
+
+      return `💡 **PHÂN TÍCH CHI TIẾT ĐÈN ${lampId}**
+
+📊 **Trạng thái:**
+• Nguồn: ${lamp.state}
+• Độ sáng: ${lamp.brightness}%
+• Ánh sáng môi trường: ${lamp.lux} lux
+
+⚡ **Điện năng:**
+• Dòng điện: ${lamp.current.toFixed(4)}A ${isAbnormal ? '⚠️ BẤT THƯỜNG' : '✅'}
+• Dự kiến: ${expectedCurrent.toFixed(4)}A
+• Tiêu thụ: ${lamp.energy} kWh/h
+• Chi phí/ngày: ${(parseFloat(lamp.energy) * 24 * 2500).toFixed(0)} VNĐ
+
+${lamp.state === 'ON' ? `
+🎯 **Đánh giá:**
+${lamp.lux > 150 && lamp.brightness > 60 ? `⚠️ Đang lãng phí năng lượng
+→ Giảm độ sáng xuống ${Math.max(40, lamp.brightness - 30)}% để tiết kiệm ${((lamp.brightness - Math.max(40, lamp.brightness - 30)) / 100 * 0.015 * 24 * 30 * 2500).toFixed(0)} VNĐ/tháng` : ''}
+${isAbnormal ? `⚠️ Dòng điện bất thường
+→ Cần kiểm tra bảo trì trong 24-48h` : '✅ Hoạt động bình thường'}
+${lamp.lux < 50 && lamp.brightness < 70 ? `💡 Có thể tăng độ sáng lên ${lamp.brightness + 20}% để đảm bảo an toàn` : ''}
+` : '💤 Đèn đang tắt'}
+
+📍 Vị trí: ${lamp.lat && lamp.lng ? `${lamp.lat.toFixed(4)}, ${lamp.lng.toFixed(4)}` : 'Chưa cập nhật'}`;
+    }
+
+    // 7. Số lượng đèn
+    if (q.includes('bao nhiêu') && (q.includes('đèn') || q.includes('bật'))) {
+      return `🔆 **TÌNH TRẠNG ĐÈN HIỆN TẠI**
+
+📊 Có ${context.on}/${context.total} đèn đang bật (${((context.on/context.total)*100).toFixed(1)}%)
+
+${context.lamps.filter(l => l.state === 'ON').map(l => `
+💡 Đèn ${l.id}:
+   • Độ sáng: ${l.brightness}%
+   • Tiêu thụ: ${l.energy} kWh/h
+   • Chi phí/ngày: ${(parseFloat(l.energy) * 24 * 2500).toFixed(0)} VNĐ
+`).join('\n')}
+
+💰 **Tổng chi phí hôm nay:** ${(parseFloat(context.totalEnergy) * 24 * 2500).toFixed(0)} VNĐ`;
+    }
+
+    // Default
+    return `👋 **XIN CHÀO! TÔI LÀ TRỢ LÝ AI THÔNG MINH**
+
+Tôi có thể giúp bạn:
+
+📊 **Phân tích hệ thống:**
+• "Phân tích toàn bộ hệ thống"
+• "So sánh hiệu suất các đèn"
+• "Dự đoán xu hướng tiêu thụ"
+
+🔧 **Bảo trì & Kiểm tra:**
+• "Đèn nào cần bảo trì?"
+• "Phát hiện bất thường"
+• "Trạng thái đèn 3"
+
+💰 **Tối ưu chi phí:**
+• "Tối ưu hóa chi phí điện"
+• "Tính chi phí tháng này"
+• "Tiết kiệm năng lượng"
+
+💡 Hãy thử đặt câu hỏi cụ thể để tôi phân tích chi tiết hơn!`;
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || chatLoading) return;
+
+    const userMessage = { role: 'user', content: input, timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setChatLoading(true);
+
+    setTimeout(() => {
+      try {
+        const context = getLampContext();
+        const smartResponse = generateSmartResponse(input, context);
+        
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: smartResponse,
+          timestamp: new Date()
+        }]);
+      } catch (error) {
+        console.error('Chatbot error:', error);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '❌ Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.',
+          timestamp: new Date()
+        }]);
+      } finally {
+        setChatLoading(false);
+      }
+    }, 500);
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    setMessages([{
+      role: 'assistant',
+      content: '👋 **Xin chào! Tôi là AI Assistant chuyên gia quản lý đèn thông minh.**\n\nTôi có thể:\n• 📊 Phân tích toàn bộ hệ thống\n• 🔧 Phát hiện bất thường & đề xuất bảo trì\n• 💰 Tối ưu chi phí điện năng\n• 📈 Dự đoán xu hướng tiêu thụ\n• 💡 So sánh hiệu suất các đèn\n\n🎯 Hãy thử các câu hỏi gợi ý bên dưới!',
+      timestamp: new Date()
+    }]);
+  }, []);
+
+  return (
+    <Box sx={{ p: 2, bgcolor: '#0f121a', minHeight: '100vh' }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12} lg={8}>
+          <Card elevation={4} sx={{ borderRadius: 2, bgcolor: '#1e2538', height: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ p: 3, borderBottom: '1px solid #2a3142' }}>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Avatar sx={{ bgcolor: '#6870fa', width: 48, height: 48 }}>
+                  <SmartToyIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" fontWeight="bold" color="#e0e0e0">
+                    AI Smart Assistant
+                  </Typography>
+                  <Typography variant="subtitle2" color="#b0b0b0">
+                    Trợ lý thông minh quản lý đèn đường IoT
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 3, bgcolor: '#0f121a' }}>
+              {messages.map((msg, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    mb: 3
+                  }}
+                >
+                  <Box
+                    sx={{
+                      maxWidth: '85%',
+                      display: 'flex',
+                      gap: 1.5,
+                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        bgcolor: msg.role === 'user' ? '#6870fa' : '#4caf50',
+                        width: 36,
+                        height: 36
+                      }}
+                    >
+                      {msg.role === 'user' ? <PersonIcon /> : <SmartToyIcon />}
+                    </Avatar>
+                    <Paper
+                      elevation={3}
+                      sx={{
+                        p: 2,
+                        bgcolor: msg.role === 'user' ? '#6870fa' : '#2a3142',
+                        borderRadius: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          color: '#e0e0e0',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          lineHeight: 1.6
+                        }}
+                      >
+                        {msg.content}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#b0b0b0', mt: 1, display: 'block' }}>
+                        {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    </Paper>
+                  </Box>
+                </Box>
+              ))}
+              
+              {chatLoading && (
+                <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+                  <Avatar sx={{ bgcolor: '#4caf50', width: 36, height: 36 }}>
+                    <SmartToyIcon />
+                  </Avatar>
+                  <Paper elevation={3} sx={{ p: 2, bgcolor: '#2a3142', borderRadius: 2 }}>
+                    <Box display="flex" gap={0.5}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#6870fa', animation: 'bounce 1s infinite' }} />
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#6870fa', animation: 'bounce 1s infinite 0.2s' }} />
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#6870fa', animation: 'bounce 1s infinite 0.4s' }} />
+                    </Box>
+                  </Paper>
+                </Box>
+              )}
+              <div ref={messagesEndRef} />
+            </Box>
+
+            <Divider />
+
+            <Box sx={{ p: 2, bgcolor: '#151a27' }}>
+              <Box display="flex" gap={1} mb={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Hỏi về hệ thống đèn, năng lượng, bảo trì..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  disabled={chatLoading}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#e0e0e0',
+                      bgcolor: '#0f121a',
+                      '& fieldset': { borderColor: '#2a3142' },
+                      '&:hover fieldset': { borderColor: '#6870fa' },
+                      '&.Mui-focused fieldset': { borderColor: '#6870fa' }
+                    }
+                  }}
+                />
+                <IconButton
+                  onClick={sendMessage}
+                  disabled={!input.trim() || chatLoading}
+                  sx={{
+                    bgcolor: '#6870fa',
+                    '&:hover': { bgcolor: '#5a5fd4' },
+                    '&.Mui-disabled': { bgcolor: '#424242' }
+                  }}
+                >
+                  <SendIcon sx={{ color: '#fff' }} />
+                </IconButton>
+              </Box>
+              
+              <Box display="flex" flexWrap="wrap" gap={1}>
+                {quickQuestions.map((q, idx) => (
+                  <Button
+                    key={idx}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setInput(q)}
+                    sx={{
+                      borderColor: '#6870fa',
+                      color: '#6870fa',
+                      textTransform: 'none',
+                      fontSize: '0.75rem',
+                      '&:hover': { borderColor: '#5a5fd4', bgcolor: 'rgba(104, 112, 250, 0.1)' }
+                    }}
+                  >
+                    {q}
+                  </Button>
+                ))}
+              </Box>
+            </Box>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Card sx={{ bgcolor: '#1e2538', borderRadius: 2 }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <BoltIcon sx={{ color: '#ffc107' }} />
+                    <Typography variant="h6" fontWeight="bold" color="#e0e0e0">
+                      Tổng quan hệ thống
+                    </Typography>
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Box sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1 }}>
+                        <Typography variant="caption" color="#b0b0b0">Đèn hoạt động</Typography>
+                        <Typography variant="h4" fontWeight="bold" color="#4caf50">
+                          {Object.values(lightStates).filter(l => l.lamp_state === 'ON').length}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Box sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1 }}>
+                        <Typography variant="caption" color="#b0b0b0">Tổng số đèn</Typography>
+                        <Typography variant="h4" fontWeight="bold" color="#6870fa">
+                          {Object.keys(lightStates).length}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Box sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1 }}>
+                        <Typography variant="caption" color="#b0b0b0">Tổng tiêu thụ</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="#ffc107">
+                          {getLampContext().totalEnergy} kWh/h
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Card sx={{ bgcolor: '#1e2538', borderRadius: 2 }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <LightbulbIcon sx={{ color: '#4caf50' }} />
+                    <Typography variant="h6" fontWeight="bold" color="#e0e0e0">
+                      Danh sách đèn
+                    </Typography>
+                  </Box>
+                  <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                    {Object.entries(lightStates).map(([nodeId, lamp]) => {
+                      const isOn = lamp.lamp_state === 'ON';
+                      const energy = calculateEnergy(lamp);
+                      return (
+                        <Box
+                          key={nodeId}
+                          sx={{
+                            p: 1.5,
+                            mb: 1,
+                            bgcolor: '#151a27',
+                            borderRadius: 1,
+                            border: `1px solid ${isOn ? '#4caf50' : '#424242'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                          }}
+                        >
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <LightbulbIcon 
+                              sx={{ 
+                                color: isOn ? '#4caf50' : '#666',
+                                fontSize: 20
+                              }} 
+                            />
+                            <Box>
+                              <Typography variant="body2" fontWeight="bold" color="#e0e0e0">
+                                Đèn {nodeId}
+                              </Typography>
+                              <Typography variant="caption" color="#b0b0b0">
+                                {lamp.lamp_dim}% • {energy} kWh/h
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Chip
+                            label={isOn ? 'ON' : 'OFF'}
+                            size="small"
+                            sx={{
+                              bgcolor: isOn ? '#4caf50' : '#666',
+                              color: '#fff',
+                              fontSize: '0.7rem',
+                              fontWeight: 'bold'
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Card sx={{ bgcolor: '#1e2538', borderRadius: 2 }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <WarningIcon sx={{ color: '#ff9800' }} />
+                    <Typography variant="h6" fontWeight="bold" color="#e0e0e0">
+                      Cảnh báo nhanh
+                    </Typography>
+                  </Box>
+                  {(() => {
+                    const context = getLampContext();
+                    const warnings = [];
+                    
+                    context.lamps.forEach(l => {
+                      if (l.state === 'ON') {
+                        const expectedCurrent = (l.brightness / 100) * 0.068;
+                        if (Math.abs(l.current - expectedCurrent) > 0.01) {
+                          warnings.push({
+                            icon: <WarningIcon sx={{ color: '#ff9800' }} />,
+                            text: `Đèn ${l.id}: Dòng điện bất thường`,
+                            severity: 'warning'
+                          });
+                        }
+                        if (l.lux > 150 && l.brightness > 70) {
+                          warnings.push({
+                            icon: <TrendingUpIcon sx={{ color: '#2196f3' }} />,
+                            text: `Đèn ${l.id}: Có thể giảm độ sáng`,
+                            severity: 'info'
+                          });
+                        }
+                        if (parseFloat(l.energy) > 0.015) {
+                          warnings.push({
+                            icon: <BoltIcon sx={{ color: '#f44336' }} />,
+                            text: `Đèn ${l.id}: Tiêu thụ cao`,
+                            severity: 'error'
+                          });
+                        }
+                      }
+                    });
+
+                    if (warnings.length === 0) {
+                      return (
+                        <Box display="flex" alignItems="center" gap={1} sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1 }}>
+                          <CheckCircleIcon sx={{ color: '#4caf50' }} />
+                          <Typography variant="body2" color="#4caf50">
+                            Hệ thống hoạt động bình thường
+                          </Typography>
+                        </Box>
+                      );
+                    }
+
+                    return (
+                      <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {warnings.slice(0, 5).map((w, idx) => (
+                          <Box
+                            key={idx}
+                            display="flex"
+                            alignItems="center"
+                            gap={1}
+                            sx={{ p: 1.5, mb: 1, bgcolor: '#151a27', borderRadius: 1 }}
+                          >
+                            {w.icon}
+                            <Typography variant="body2" color="#e0e0e0">
+                              {w.text}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Card sx={{ bgcolor: '#1e2538', borderRadius: 2 }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <AttachMoneyIcon sx={{ color: '#4caf50' }} />
+                    <Typography variant="h6" fontWeight="bold" color="#e0e0e0">
+                      Chi phí ước tính
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1, mb: 1 }}>
+                    <Typography variant="caption" color="#b0b0b0">Hôm nay</Typography>
+                    <Typography variant="h5" fontWeight="bold" color="#4caf50">
+                      {(parseFloat(getLampContext().totalEnergy) * 24 * 2500).toFixed(0)} VNĐ
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 2, bgcolor: '#151a27', borderRadius: 1 }}>
+                    <Typography variant="caption" color="#b0b0b0">Tháng này (ước tính)</Typography>
+                    <Typography variant="h5" fontWeight="bold" color="#ffc107">
+                      {(parseFloat(getLampContext().totalEnergy) * 24 * 30 * 2500).toFixed(0)} VNĐ
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+
+      <style>
+        {`
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+          }
+        `}
+      </style>
+    </Box>
+  );
+};
+
+export default MLPrediction;
