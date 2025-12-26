@@ -1,4 +1,3 @@
-// src/hooks/useLightState.js
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import mqtt from 'mqtt';
@@ -32,8 +31,84 @@ export function LightStateProvider({ children }) {
 
   // Linh hoạt URL backend
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  
+  // ĐÃ SỬA LỖI TẠI ĐÂY: "use useCallback" → "useCallback"
+  const updateLightState = useCallback(async (nodeId, updates, source = 'manual') => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return console.error('No token');
 
-  // === KHAI BÁO fetchLightStates TRƯỚC ===
+      const payload = {
+        gw_id: lightStates[nodeId]?.gw_id || 'gw-01',
+        node_id: nodeId.toString(),
+        ...updates,
+      };
+
+      // Gửi qua backend
+      await axios.post(`${API_BASE}/api/lamp/control`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Gửi luôn qua MQTT
+      mqttClient.publish(`lamp/control/${nodeId}`, JSON.stringify(updates), { qos: 1 });
+
+      // Cập nhật state local
+      setLightStates(prev => {
+        const newState = {
+          ...prev,
+          [nodeId]: {
+            ...prev[nodeId],
+            ...updates,
+            manualOverride: source === 'manual',
+            lastManualAction: source === 'manual' ? new Date().toISOString() : prev[nodeId]?.lastManualAction,
+          },
+        };
+        return JSON.stringify(newState) !== JSON.stringify(prev) ? newState : prev;
+      });
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        window.location.href = '/login';
+      } else {
+        console.error('Lỗi updateLightState:', err);
+      }
+    }
+  }, [lightStates, API_BASE]);
+
+  const addLight = useCallback(async (lampData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const { data } = await axios.post(`${API_BASE}/api/lamp/control`, lampData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const lamp = data.lamp;
+      setLightStates(prev => ({
+        ...prev,
+        [lamp.node_id]: {
+          gw_id: lamp.gw_id,
+          node_id: lamp.node_id,
+          lamp_state: lamp.lamp_state,
+          lamp_dim: lamp.lamp_dim,
+          lux: lamp.lux || 0,
+          current_a: lamp.current_a || 0,
+          lat: lamp.lat,
+          lng: lamp.lng,
+          energy_consumed: lamp.energy_consumed || 0,
+          manualOverride: false,
+          lastManualAction: null,
+        },
+      }));
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        window.location.href = '/login';
+      }
+    }
+  }, [API_BASE]);
+
   const fetchLightStates = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -68,93 +143,6 @@ export function LightStateProvider({ children }) {
       }
     }
   }, [API_BASE]);
-
-  // updateLightState - SỬA ĐỂ KHÔNG ĐÈ LUX/CURRENT_A
-  const updateLightState = useCallback(async (nodeId, updates, source = 'manual') => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return console.error('No token');
-
-      const payload = {
-        gw_id: lightStates[nodeId]?.gw_id || 'gw-01',
-        node_id: nodeId.toString(),
-        ...updates,
-      };
-
-      // Gửi qua backend
-      await axios.post(`${API_BASE}/api/lamp/control`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // Gửi luôn qua MQTT
-      mqttClient.publish(`lamp/control/${nodeId}`, JSON.stringify(updates), { qos: 1 });
-
-      // Cập nhật state local - KHÔNG ĐÈ lux/current_a
-      setLightStates(prev => {
-        const currentLamp = prev[nodeId] || {};
-        const updatedLamp = {
-          ...currentLamp,
-          ...updates, // Chỉ update lamp_state, lamp_dim nếu có
-          manualOverride: source === 'manual',
-          lastManualAction: source === 'manual' ? new Date().toISOString() : currentLamp.lastManualAction,
-        };
-
-        const newState = {
-          ...prev,
-          [nodeId]: updatedLamp,
-        };
-
-        return JSON.stringify(newState) !== JSON.stringify(prev) ? newState : prev;
-      });
-
-      // Force fetch để lấy lux/current_a mới nhất từ backend
-      fetchLightStates();
-
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        window.location.href = '/login';
-      } else {
-        console.error('Lỗi updateLightState:', err);
-      }
-    }
-  }, [lightStates, API_BASE, fetchLightStates]);
-
-  const addLight = useCallback(async (lampData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const { data } = await axios.post(`${API_BASE}/api/lamp/control`, lampData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const lamp = data.lamp;
-      setLightStates(prev => ({
-        ...prev,
-        [lamp.node_id]: {
-          gw_id: lamp.gw_id,
-          node_id: lamp.node_id,
-          lamp_state: lamp.lamp_state,
-          lamp_dim: lamp.lamp_dim,
-          lux: lamp.lux || 0,
-          current_a: lamp.current_a || 0,
-          lat: lamp.lat,
-          lng: lamp.lng,
-          energy_consumed: lamp.energy_consumed || 0,
-          manualOverride: false,
-          lastManualAction: null,
-        },
-      }));
-
-      fetchLightStates();
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        window.location.href = '/login';
-      }
-    }
-  }, [API_BASE, fetchLightStates]);
 
   const syncLightStatesWithSchedule = useCallback(async (now = new Date()) => {
     try {
@@ -249,34 +237,6 @@ export function LightStateProvider({ children }) {
     }
   }, [API_BASE, syncLightStatesWithSchedule]);
 
-  // Fetch lightHistory từ backend (cho ML Prediction)
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setLightHistory([]);
-          return;
-        }
-
-        const { data } = await axios.get(`${API_BASE}/api/activitylog`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const logs = data.logs || [];
-        console.log(`Fetched ${logs.length} activity logs for ML training`);
-        setLightHistory(logs);
-      } catch (err) {
-        console.error("Error fetching activity logs for ML:", err);
-        setLightHistory([]);
-      }
-    };
-
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 30000);
-    return () => clearInterval(interval);
-  }, [API_BASE]);
-
   // Subscribe MQTT
   useEffect(() => {
     Object.keys(lightStates).forEach(nodeId => {
@@ -311,12 +271,7 @@ export function LightStateProvider({ children }) {
   // Khởi động
   useEffect(() => {
     fetchLightStates();
-
-    const interval = setInterval(() => {
-      fetchLightStates(); // Cập nhật trạng thái đèn (lux, current_a) mỗi 10 giây
-      syncLightStatesWithSchedule();
-    }, 10000);
-
+    const interval = setInterval(() => syncLightStatesWithSchedule(), 10000);
     return () => clearInterval(interval);
   }, [fetchLightStates, syncLightStatesWithSchedule]);
 
