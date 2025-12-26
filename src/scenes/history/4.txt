@@ -22,7 +22,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Header from "../../components/Header";
 import axios from "axios";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -47,12 +47,9 @@ const ACTION_GROUPS = {
 /* ===== ICON MAP ===== */
 const actionIcon = (action) => {
   if (action === "login") return <LoginIcon fontSize="small" />;
-  if (action.startsWith("set_lamp"))
-    return <LightbulbOutlinedIcon fontSize="small" />;
-  if (action.includes("schedule"))
-    return <EventNoteOutlinedIcon fontSize="small" />;
-  if (action.includes("user"))
-    return <PersonOutlineIcon fontSize="small" />;
+  if (action.startsWith("set_lamp")) return <LightbulbOutlinedIcon fontSize="small" />;
+  if (action.includes("schedule")) return <EventNoteOutlinedIcon fontSize="small" />;
+  if (action.includes("user")) return <PersonOutlineIcon fontSize="small" />;
   return <InfoOutlinedIcon fontSize="small" />;
 };
 
@@ -60,52 +57,34 @@ const History = () => {
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [group, setGroup] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all"); // all | today | yesterday
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
 
   /* ===== FETCH LOG ===== */
   const fetchLogs = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_BASE}/api/activitylog`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { page, limit },
-      });
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`${API_BASE}/api/activitylog`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { page, limit },
+    });
 
-      setLogs(res.data.logs || []);
-      setTotalPages(res.data.totalPages || 1);
-    } catch (err) {
-      console.error("Lỗi lấy log:", err);
-    }
+    setLogs(res.data.logs || []);
+    setTotalPages(res.data.totalPages || 1);
   }, [page]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  /* ===== FILTER LOG ===== */
+  /* ===== FILTER ===== */
   useEffect(() => {
-    let result = logs;
-
-    // lọc theo nhóm hành vi
-    if (group !== "all") {
+    if (group === "all") setFilteredLogs(logs);
+    else {
       const actions = ACTION_GROUPS[group].actions;
-      result = result.filter((l) => actions.includes(l.action));
+      setFilteredLogs(logs.filter((l) => actions.includes(l.action)));
     }
-
-    // lọc theo ngày
-    if (dateFilter === "today") {
-      result = result.filter((l) => isToday(new Date(l.timestamp)));
-    }
-
-    if (dateFilter === "yesterday") {
-      result = result.filter((l) => isYesterday(new Date(l.timestamp)));
-    }
-
-    setFilteredLogs(result);
-  }, [logs, group, dateFilter]);
+  }, [logs, group]);
 
   const isAll = group === "all";
 
@@ -130,10 +109,8 @@ const History = () => {
       >
         <Stack direction="row" spacing={2} alignItems="center">
           <Typography fontSize="0.8rem" fontWeight={500}>
-            Bộ lọc
+            Nhóm hành vi
           </Typography>
-
-          {/* FILTER HÀNH VI */}
           <Select
             size="small"
             value={group}
@@ -141,25 +118,13 @@ const History = () => {
               setGroup(e.target.value);
               setPage(1);
             }}
-            sx={{ minWidth: 160 }}
+            sx={{ minWidth: 180 }}
           >
             {Object.entries(ACTION_GROUPS).map(([key, g]) => (
               <MenuItem key={key} value={key}>
                 {g.label}
               </MenuItem>
             ))}
-          </Select>
-
-          {/* FILTER NGÀY */}
-          <Select
-            size="small"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="all">Tất cả ngày</MenuItem>
-            <MenuItem value="today">Hôm nay</MenuItem>
-            <MenuItem value="yesterday">Hôm qua</MenuItem>
           </Select>
         </Stack>
       </Paper>
@@ -178,10 +143,10 @@ const History = () => {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ py: 0.7 }}>User</TableCell>
-              <TableCell sx={{ py: 0.7 }}>Action</TableCell>
-              <TableCell sx={{ py: 0.7 }}>Time</TableCell>
-              <TableCell sx={{ py: 0.7 }}>IP</TableCell>
+              <TableCell sx={{ py: 0.75 }}>User</TableCell>
+              <TableCell sx={{ py: 0.75 }}>Action</TableCell>
+              <TableCell sx={{ py: 0.75 }}>Time</TableCell>
+              <TableCell sx={{ py: 0.75 }}>IP</TableCell>
             </TableRow>
           </TableHead>
 
@@ -191,15 +156,17 @@ const History = () => {
                 <TableRow
                   key={log._id}
                   hover
-                  sx={{ "&:hover": { backgroundColor: "action.hover" } }}
+                  sx={{
+                    "&:hover": { backgroundColor: "action.hover" },
+                  }}
                 >
-                  <TableCell sx={{ py: 0.55 }}>
+                  <TableCell sx={{ py: 0.6 }}>
                     <Typography fontSize="0.75rem" fontWeight={600}>
                       {log.userId?.username || "N/A"}
                     </Typography>
                   </TableCell>
 
-                  <TableCell sx={{ py: 0.55 }}>
+                  <TableCell sx={{ py: 0.6 }}>
                     {isAll ? (
                       <Stack direction="row" spacing={0.5} alignItems="center">
                         <Box color="text.secondary">
@@ -222,7 +189,7 @@ const History = () => {
                     )}
                   </TableCell>
 
-                  <TableCell sx={{ py: 0.55 }}>
+                  <TableCell sx={{ py: 0.6 }}>
                     <Typography fontSize="0.75rem">
                       {format(new Date(log.timestamp), "dd/MM HH:mm")}
                     </Typography>
@@ -230,7 +197,7 @@ const History = () => {
 
                   <TableCell
                     sx={{
-                      py: 0.55,
+                      py: 0.6,
                       fontSize: "0.7rem",
                       fontFamily: "monospace",
                       color: "text.secondary",
