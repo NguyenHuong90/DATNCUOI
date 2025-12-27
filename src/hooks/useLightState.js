@@ -1,3 +1,4 @@
+// Frontend: hooks/useLightState.js (giữ nguyên, chỉ thêm comment)
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import mqtt from 'mqtt';
@@ -31,8 +32,7 @@ export function LightStateProvider({ children }) {
 
   // Linh hoạt URL backend
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  
-  // ĐÃ SỬA LỖI TẠI ĐÂY: "use useCallback" → "useCallback"
+
   const updateLightState = useCallback(async (nodeId, updates, source = 'manual') => {
     try {
       const token = localStorage.getItem('token');
