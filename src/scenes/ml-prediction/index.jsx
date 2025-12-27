@@ -1,4 +1,3 @@
-// src/scenes/ml-prediction/index.jsx
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import {
   Box,
@@ -10,13 +9,13 @@ import {
   Chip,
   Grid,
   LinearProgress,
-  TextField,
-  IconButton,
   Paper,
   Divider,
   Fab,
   Drawer,
   Badge,
+  TextField,
+  IconButton,
 } from '@mui/material';
 import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
@@ -27,7 +26,6 @@ import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
-import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import * as tf from '@tensorflow/tfjs';
 import { useLightState } from '../../hooks/useLightState';
 import { ColorModeContext } from '../../theme';
@@ -35,91 +33,126 @@ import { ColorModeContext } from '../../theme';
 const MLPrediction = () => {
   const { lightStates, lightHistory } = useLightState();
   const { mode } = useContext(ColorModeContext);
+
   const [model, setModel] = useState(null);
-  const [predictions, setPredictions] = useState({});
+  const [predictions, setPredictions] = useState({}); // kWh/h dự đoán
   const [accumulatedEnergy, setAccumulatedEnergy] = useState({});
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
   const modelRef = useRef(null);
+
   // Chatbot states
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Chuẩn bị dữ liệu huấn luyện: chỉ dùng lamp_dim, current_a, hoursOn → energy (kWh)
   const prepareData = () => {
     const features = [];
     const labels = [];
+
     (lightHistory || []).forEach(hist => {
-      if (hist?.details) {
-        const startTime = new Date(hist.details.startTime);
-        const endTime = new Date(hist.details.endTime || new Date());
-        const hoursOn = isNaN(endTime - startTime) ? 1 : (endTime - startTime) / (1000 * 60 * 60);
-        features.push([
-          hist.details.lampDim || 0,
-          hist.details.lux || 0,
-          hist.details.currentA || 0,
-          hoursOn,
-        ]);
-        labels.push(Math.max(0, hist.details.energyConsumed || 0));
-      }
-    });
-    // Add fake data for OFF state
-    for (let i = 0; i < 8; i++) {
+      if (!hist?.details) return;
+
+      const { lampDim, currentA, energyConsumed, startTime, endTime } = hist.details;
+
+      if (lampDim === undefined || currentA === undefined || energyConsumed === undefined) return;
+
+      const start = new Date(startTime || hist.timestamp);
+      const end = new Date(endTime || new Date());
+      const hoursOn = (end - start) / (1000 * 60 * 60);
+
+      if (hoursOn <= 0) return;
+
       features.push([
-        0,
-        Math.random() * 15,
-        0,
-        1 + Math.random() * 2,
+        lampDim / 100.0,        // normalize độ sáng về [0,1]
+        currentA,               // dòng điện thực tế (A)
+        hoursOn,                // thời gian bật (giờ)
       ]);
+
+      labels.push(Math.max(0, parseFloat(energyConsumed) || 0));
+    });
+
+    // Thêm một số mẫu đèn tắt để mô hình học tốt hơn
+    for (let i = 0; i < Math.max(10, features.length / 3); i++) {
+      features.push([0, 0, 1 + Math.random() * 3]);
       labels.push(0);
     }
-    if (features.length === 0) {
-      setErrorMsg('Không có dữ liệu lịch sử để huấn luyện mô hình. Vui lòng kiểm tra log hoạt động trong mục History.');
+
+    if (features.length < 10) {
+      setErrorMsg('Chưa đủ dữ liệu lịch sử (ít nhất 10 bản ghi) để huấn luyện mô hình AI.');
       return null;
     }
-    console.log(`Training on ${features.length} samples`);
+
+    console.log(`Huấn luyện mô hình với ${features.length} mẫu dữ liệu thực tế`);
+
     return {
       features: tf.tensor2d(features),
       labels: tf.tensor2d(labels, [labels.length, 1]),
     };
   };
+
+  // Huấn luyện mô hình khi có dữ liệu mới
   useEffect(() => {
     let isMounted = true;
+
     const trainModel = async () => {
       if (!isMounted) return;
       setLoading(true);
       setErrorMsg('');
+
       const data = prepareData();
       if (!data) {
         setLoading(false);
         return;
       }
+
       try {
+        // Xóa mô hình cũ
         if (modelRef.current) {
           modelRef.current.dispose();
-          modelRef.current = null;
         }
+
         const mlModel = tf.sequential();
-        mlModel.add(tf.layers.dense({ units: 32, activation: 'relu', inputShape: [4] }));
+        mlModel.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [3] }));
+        mlModel.add(tf.layers.dropout({ rate: 0.2 }));
+        mlModel.add(tf.layers.dense({ units: 32, activation: 'relu' }));
         mlModel.add(tf.layers.dense({ units: 16, activation: 'relu' }));
-        mlModel.add(tf.layers.dense({ units: 1, activation: 'relu' }));
-        mlModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
-        await mlModel.fit(data.features, data.labels, { epochs: 120, shuffle: true, verbose: 0 });
+        mlModel.add(tf.layers.dense({ units: 1, activation: 'linear' })); // linear cho regression
+
+        mlModel.compile({
+          optimizer: tf.train.adam(0.001),
+          loss: 'meanSquaredError',
+          metrics: ['mae'],
+        });
+
+        await mlModel.fit(data.features, data.labels, {
+          epochs: 150,
+          batchSize: 8,
+          shuffle: true,
+          verbose: 0,
+        });
+
         data.features.dispose();
         data.labels.dispose();
+
         if (isMounted) {
           modelRef.current = mlModel;
           setModel(mlModel);
         }
       } catch (err) {
-        console.error('Error training model:', err);
-        if (isMounted) setErrorMsg('Đã xảy ra lỗi khi huấn luyện mô hình.');
+        console.error('Lỗi huấn luyện mô hình:', err);
+        if (isMounted) setErrorMsg('Lỗi khi huấn luyện mô hình AI. Vui lòng thử lại sau.');
       } finally {
         if (isMounted) setLoading(false);
       }
     };
+
     trainModel();
+
     return () => {
       isMounted = false;
       if (modelRef.current) {
@@ -128,181 +161,154 @@ const MLPrediction = () => {
       }
     };
   }, [lightHistory]);
-  const predictEnergy = async (lamp) => {
+
+  // Dự đoán tiêu thụ mỗi giờ (kWh/h) dựa trên trạng thái hiện tại
+  const predictHourlyConsumption = async (lamp) => {
     if (!modelRef.current) return null;
     if (lamp.lamp_state === 'OFF') return 0;
-    const input = tf.tensor2d([[lamp.lamp_dim || 0, lamp.lux || 0, lamp.current_a || 0, 1]]);
+
+    const input = tf.tensor2d([[
+      (lamp.lamp_dim || 0) / 100.0,
+      lamp.current_a || 0,
+      1.0  // giả sử dự đoán cho 1 giờ bật liên tục
+    ]]);
+
     const predTensor = modelRef.current.predict(input);
     const pred = await predTensor.data();
-    predTensor.dispose();
     input.dispose();
+    predTensor.dispose();
+
     return Math.max(0, pred[0]);
   };
+
+  // Cập nhật dự đoán cho tất cả đèn
   useEffect(() => {
-    if (!modelRef.current || !lightStates || Object.keys(lightStates).length === 0) return;
+    if (!modelRef.current || Object.keys(lightStates).length === 0) return;
+
     const updatePredictions = async () => {
       const preds = {};
       for (const [nodeId, lamp] of Object.entries(lightStates)) {
-        const value = await predictEnergy(lamp);
+        const value = await predictHourlyConsumption(lamp);
         preds[nodeId] = value;
       }
       setPredictions(preds);
     };
+
     updatePredictions();
   }, [modelRef.current, lightStates]);
-  // Calculate accumulated energy
-  const calculateAccumulatedEnergy = () => {
+
+  // Tính tổng năng lượng cộng dồn từ lịch sử
+  useEffect(() => {
     const accum = {};
     (lightHistory || []).forEach(hist => {
       if (hist?.details?.nodeId && hist.details.energyConsumed !== undefined) {
         const nodeId = hist.details.nodeId;
-        const energy = Math.max(0, parseFloat(hist.details.energyConsumed) || 0);
+        const energy = parseFloat(hist.details.energyConsumed) || 0;
         if (!accum[nodeId]) accum[nodeId] = 0;
         accum[nodeId] += energy;
       }
     });
     Object.keys(accum).forEach(key => {
-      accum[key] = accum[key].toFixed(2);
+      accum[key] = parseFloat(accum[key].toFixed(3));
     });
     setAccumulatedEnergy(accum);
-  };
-  useEffect(() => {
-    calculateAccumulatedEnergy();
   }, [lightHistory]);
+
   const getSuggestion = (value) => {
-    if (value === null || value === undefined) return {
-      text: 'Đang tính...',
-      color: 'default',
-      icon: <AutoGraphIcon />
-    };
-    if (value === 0) return {
-      text: 'Đèn tắt - Không tiêu thụ',
-      color: 'success',
-      icon: <TrendingDownIcon />
-    };
-    if (value > 20) return {
-      text: 'Tiêu thụ cao - Giảm độ sáng',
-      color: 'error',
-      icon: <TrendingUpIcon />
-    };
-    if (value < 5) return {
-      text: 'Tiêu thụ thấp - Hiệu quả',
-      color: 'success',
-      icon: <TrendingDownIcon />
-    };
-    return {
-      text: 'Tiêu thụ ổn định',
-      color: 'info',
-      icon: <AutoGraphIcon />
-    };
+    if (value === null) return { text: 'Đang tính...', color: 'default', icon: <AutoGraphIcon /> };
+    if (value === 0) return { text: 'Đèn tắt', color: 'success', icon: <TrendingDownIcon /> };
+    if (value > 0.015) return { text: 'Tiêu thụ cao - Nên giảm sáng', color: 'error', icon: <TrendingUpIcon /> };
+    if (value < 0.005) return { text: 'Rất tiết kiệm', color: 'success', icon: <TrendingDownIcon /> };
+    return { text: 'Tiêu thụ hợp lý', color: 'info', icon: <BoltIcon /> };
   };
+
   const getTotalPrediction = () => {
     const total = Object.values(predictions).reduce((sum, val) => sum + (val || 0), 0);
-    return total.toFixed(2);
+    return total.toFixed(3);
   };
+
   const getAveragePrediction = () => {
-    const values = Object.values(predictions).filter(v => v !== null && v !== undefined);
-    if (values.length === 0) return '0.00';
-    const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-    return avg.toFixed(2);
+    const values = Object.values(predictions).filter(v => v > 0);
+    if (values.length === 0) return '0.000';
+    return (values.reduce((a, b) => a + b, 0) / values.length).toFixed(3);
   };
+
   const getLampContext = () => {
-    const onLamps = Object.values(lightStates).filter(l => l.lamp_state === 'ON');
-    const offLamps = Object.values(lightStates).filter(l => l.lamp_state === 'OFF');
     return {
       total: Object.keys(lightStates).length,
-      on: onLamps.length,
-      off: offLamps.length,
-      lamps: Object.values(lightStates).map(l => ({
-        id: l.node_id,
+      on: Object.values(lightStates).filter(l => l.lamp_state === 'ON').length,
+      lamps: Object.entries(lightStates).map(([nodeId, l]) => ({
+        id: nodeId,
         state: l.lamp_state,
-        brightness: l.lamp_dim,
-        prediction: predictions[l.node_id] ? predictions[l.node_id].toFixed(2) : 'N/A'
+        brightness: l.lamp_dim || 0,
+        current: l.current_a ? l.current_a.toFixed(3) : '0.000',
+        prediction: predictions[nodeId] !== undefined ? predictions[nodeId].toFixed(3) : 'N/A',
+        lux: l.lux || 0,
       })),
       totalPrediction: getTotalPrediction(),
-      avgPrediction: getAveragePrediction()
+      avgPrediction: getAveragePrediction(),
     };
   };
+
   const generateSmartResponse = (question, context) => {
     const q = question.toLowerCase();
-    if (q.includes('bao nhiêu') && (q.includes('đèn') || q.includes('bật'))) {
-      return `🔆 Hiện tại có ${context.on}/${context.total} đèn đang bật.\n\n${context.lamps.filter(l => l.state === 'ON').map(l => `• Đèn ${l.id}: ${l.brightness}% (${l.prediction} kWh/h)`).join('\n')}`;
+    if (q.includes('bao nhiêu') && q.includes('đèn')) {
+      return `Hiện tại có ${context.on}/${context.total} đèn đang bật.\n\n${context.lamps.filter(l => l.state === 'ON').map(l => `• Đèn ${l.id}: ${l.brightness}% (${l.prediction} kWh/h)`).join('\n')}`;
     }
-    if (q.includes('tắt')) {
-      return `💤 Hiện tại có ${context.off}/${context.total} đèn đang tắt.\n\n${context.lamps.filter(l => l.state === 'OFF').map(l => `• Đèn ${l.id}`).join('\n')}`;
-    }
-    if (q.includes('tiêu thụ') || q.includes('năng lượng') || q.includes('điện')) {
-      const maxLamp = context.lamps.reduce((max, l) =>
-        parseFloat(l.prediction) > parseFloat(max.prediction) ? l : max
-      );
-      return `⚡ Tổng quan tiêu thụ năng lượng:\n\n• Tổng: ${context.totalPrediction} kWh/h\n• Trung bình: ${context.avgPrediction} kWh/h\n• Đèn tiêu thụ cao nhất: Đèn ${maxLamp.id} (${maxLamp.prediction} kWh/h)\n\n💡 Gợi ý: ${parseFloat(maxLamp.prediction) > 15 ? 'Nên giảm độ sáng đèn ' + maxLamp.id + ' để tiết kiệm năng lượng.' : 'Hệ thống đang hoạt động hiệu quả.'}`;
+    if (q.includes('tiêu thụ') || q.includes('năng lượng')) {
+      const maxLamp = context.lamps.reduce((max, l) => (parseFloat(l.prediction) || 0) > (parseFloat(max.prediction) || 0) ? l : max, context.lamps[0]);
+      return `Dự báo tiêu thụ (AI):\n\n• Tổng: ${context.totalPrediction} kWh/h\n• Trung bình: ${context.avgPrediction} kWh/h\n• Cao nhất: Đèn ${maxLamp.id} (${maxLamp.prediction} kWh/h)\n\n${parseFloat(maxLamp.prediction) > 0.015 ? 'Gợi ý giảm độ sáng đèn ' + maxLamp.id : 'Hệ thống đang tiết kiệm tốt!'}`;
     }
     if (q.includes('đèn') && /\d+/.test(q)) {
-      const lampId = q.match(/\d+/)[0];
-      const lamp = context.lamps.find(l => l.id === lampId);
+      const id = q.match(/\d+/)[0];
+      const lamp = context.lamps.find(l => l.id === id);
       if (lamp) {
-        return `💡 Đèn ${lampId}:\n\n• Trạng thái: ${lamp.state}\n• Độ sáng: ${lamp.brightness}%\n• Dự đoán tiêu thụ: ${lamp.prediction} kWh/h\n\n${lamp.state === 'ON' && parseFloat(lamp.prediction) > 15 ? '⚠️ Đang tiêu thụ cao, nên giảm độ sáng.' : '✅ Hoạt động bình thường.'}`;
+        return `Đèn ${id}:\n• Trạng thái: ${lamp.state}\n• Độ sáng: ${lamp.brightness}%\n• Dòng hiện tại: ${lamp.current}A\n• Dự báo AI: ${lamp.prediction} kWh/h\n• Ánh sáng môi trường: ${lamp.lux} lux`;
       }
-      return `❌ Không tìm thấy đèn ${lampId}.`;
+      return `Không tìm thấy đèn ${id}`;
     }
-    if (q.includes('tối ưu') || q.includes('tiết kiệm') || q.includes('giảm')) {
-      const highConsumption = context.lamps.filter(l => parseFloat(l.prediction) > 15 && l.state === 'ON');
-      if (highConsumption.length > 0) {
-        return `💡 Gợi ý tối ưu:\n\n${highConsumption.map(l => `• Đèn ${l.id}: Giảm từ ${l.brightness}% xuống ${Math.max(50, l.brightness - 20)}% để tiết kiệm ~${((parseFloat(l.prediction) * 0.2).toFixed(2))} kWh/h`).join('\n')}\n\n📊 Tiết kiệm ước tính: ${(highConsumption.reduce((sum, l) => sum + parseFloat(l.prediction) * 0.2, 0)).toFixed(2)} kWh/h`;
+    if (q.includes('tối ưu') || q.includes('tiết kiệm')) {
+      const high = context.lamps.filter(l => parseFloat(l.prediction) > 0.012 && l.state === 'ON');
+      if (high.length > 0) {
+        return `Gợi ý tiết kiệm:\n${high.map(l => `• Đèn ${l.id}: giảm xuống ~70% → tiết kiệm ~${(parseFloat(l.prediction) * 0.3).toFixed(3)} kWh/h`).join('\n')}`;
       }
-      return `✅ Hệ thống đang hoạt động tối ưu! Không cần điều chỉnh.`;
+      return 'Hệ thống đang hoạt động rất tiết kiệm!';
     }
-    if (q.includes('cao nhất') || q.includes('nhiều nhất')) {
-      const maxLamp = context.lamps.reduce((max, l) =>
-        parseFloat(l.prediction) > parseFloat(max.prediction) ? l : max
-      );
-      return `🔥 Đèn tiêu thụ nhiều nhất:\n\nĐèn ${maxLamp.id}\n• Độ sáng: ${maxLamp.brightness}%\n• Tiêu thụ: ${maxLamp.prediction} kWh/h\n\n${parseFloat(maxLamp.prediction) > 15 ? '💡 Gợi ý: Giảm độ sáng xuống 60-70% để tiết kiệm năng lượng.' : '✅ Mức tiêu thụ trong giới hạn hợp lý.'}`;
-    }
-    if (q.includes('thấp nhất') || q.includes('ít nhất')) {
-      const minLamp = context.lamps.filter(l => l.state === 'ON').reduce((min, l) =>
-        parseFloat(l.prediction) < parseFloat(min.prediction) ? l : min
-      );
-      return `🌟 Đèn tiêu thụ ít nhất:\n\nĐèn ${minLamp.id}\n• Độ sáng: ${minLamp.brightness}%\n• Tiêu thụ: ${minLamp.prediction} kWh/h\n\n✅ Đèn này đang hoạt động hiệu quả!`;
-    }
-    return `👋 Xin chào! Tôi có thể giúp bạn:\n\n• Kiểm tra trạng thái đèn\n• Phân tích tiêu thụ năng lượng\n• Đưa ra gợi ý tối ưu\n\n💬 Hãy thử hỏi:\n- "Có bao nhiêu đèn đang bật?"\n- "Đèn nào tiêu thụ nhiều nhất?"\n- "Gợi ý tối ưu năng lượng"`;
+
+    return `Xin chào! Tôi là AI dự báo năng lượng đèn thông minh.\n\nBạn có thể hỏi:\n• "Có bao nhiêu đèn bật?"\n• "Tiêu thụ năng lượng thế nào?"\n• "Đèn 1 đang tiêu thụ bao nhiêu?"\n• "Gợi ý tiết kiệm điện"`;
   };
+
   const sendMessage = async () => {
     if (!input.trim() || chatLoading) return;
-    const userMessage = { role: 'user', content: input, timestamp: new Date() };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, { role: 'user', content: input, timestamp: new Date() }]);
     setInput('');
     setChatLoading(true);
+
     try {
       const context = getLampContext();
-      const smartResponse = generateSmartResponse(input, context);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: smartResponse,
-        timestamp: new Date()
-      }]);
-    } catch (error) {
-      console.error('Chatbot error:', error);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '❌ Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.',
-        timestamp: new Date()
-      }]);
+      const response = generateSmartResponse(input, context);
+      setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: new Date() }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Lỗi xử lý. Thử lại nhé!', timestamp: new Date() }]);
     } finally {
       setChatLoading(false);
     }
   };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
   useEffect(() => {
     if (chatOpen && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: '👋 Xin chào! Tôi là trợ lý AI quản lý đèn thông minh.\n\n💬 Bạn có thể hỏi tôi:\n• "Có bao nhiêu đèn đang bật?"\n• "Đèn nào tiêu thụ điện nhiều nhất?"\n• "Gợi ý tối ưu năng lượng"\n• "Trạng thái đèn 3"',
+        content: 'Xin chào! Tôi là AI dự báo tiêu thụ năng lượng dựa trên dữ liệu thực tế từ đèn.\n\nHỏi tôi về dự báo, tiết kiệm điện hoặc trạng thái từng đèn nhé!',
         timestamp: new Date()
       }]);
     }
   }, [chatOpen]);
+
   return (
     <Box sx={{ p: 2, bgcolor: '#0f121a', minHeight: '100vh' }}>
       <Card elevation={4} sx={{ borderRadius: 2, overflow: 'hidden', bgcolor: '#1e2538', mb: 2 }}>
@@ -312,34 +318,37 @@ const MLPrediction = () => {
               <AutoGraphIcon sx={{ fontSize: 36, color: '#6870fa', mr: 1.5 }} />
               <Box>
                 <Typography variant="h5" fontWeight="bold" color="#e0e0e0">
-                  ML Prediction - Dự Đoán Năng Lượng
+                  AI Dự Báo Tiêu Thụ Năng Lượng (TensorFlow.js)
                 </Typography>
                 <Typography variant="subtitle2" color="#b0b0b0">
-                  Phân tích và dự báo tiêu thụ điện năng dựa trên AI
+                  Mô hình học từ độ sáng và dòng điện thực tế – không dùng lux
                 </Typography>
               </Box>
             </Box>
             {loading && (
               <Box display="flex" alignItems="center" gap={1}>
                 <CircularProgress size={20} sx={{ color: '#6870fa' }} />
-                <Typography variant="body2" color="#b0b0b0">Training...</Typography>
+                <Typography variant="body2" color="#b0b0b0">Đang huấn luyện AI...</Typography>
               </Box>
             )}
           </Box>
         </CardContent>
       </Card>
+
       {errorMsg && (
-        <Alert severity="warning" icon={<AutoGraphIcon />} sx={{ mb: 2, borderRadius: 1.5, bgcolor: '#3e2a00', color: '#ffecb3', '& .MuiAlert-icon': { color: '#ffecb3' } }}>
+        <Alert severity="warning" sx={{ mb: 2, borderRadius: 1.5 }}>
           {errorMsg}
         </Alert>
       )}
+
+      {/* Tổng quan */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} md={4}>
           <Card sx={{ bgcolor: '#1e2538', borderRadius: 2 }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
                 <BoltIcon sx={{ color: '#ffc107' }} />
-                <Typography variant="subtitle2" color="#b0b0b0">Tổng Dự Đoán</Typography>
+                <Typography variant="subtitle2" color="#b0b0b0">Tổng Dự Báo (AI)</Typography>
               </Box>
               <Typography variant="h4" fontWeight="bold" color="#e0e0e0">
                 {getTotalPrediction()} kWh/h
@@ -365,7 +374,7 @@ const MLPrediction = () => {
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
                 <LightbulbIcon sx={{ color: '#4caf50' }} />
-                <Typography variant="subtitle2" color="#b0b0b0">Đèn Hoạt Động</Typography>
+                <Typography variant="subtitle2" color="#b0b0b0">Đèn Đang Bật</Typography>
               </Box>
               <Typography variant="h4" fontWeight="bold" color="#e0e0e0">
                 {Object.values(lightStates).filter(l => l.lamp_state === 'ON').length}/{Object.keys(lightStates).length}
@@ -374,111 +383,64 @@ const MLPrediction = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Danh sách đèn */}
       <Grid container spacing={2}>
         {Object.entries(lightStates || {}).map(([nodeId, lamp]) => {
           const prediction = predictions[nodeId];
           const suggestion = getSuggestion(prediction);
           const isOn = lamp.lamp_state === 'ON';
           const totalConsumed = accumulatedEnergy[nodeId] || '0.00';
+
           return (
             <Grid item xs={12} sm={6} md={4} lg={3} key={nodeId}>
-              <Card
-                sx={{
-                  bgcolor: '#1e2538',
-                  borderRadius: 2,
-                  border: `2px solid ${isOn ? '#4caf50' : '#424242'}`,
-                  transition: 'all 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 16px rgba(104, 112, 250, 0.3)'
-                  }
-                }}
-              >
+              <Card sx={{
+                bgcolor: '#1e2538',
+                borderRadius: 2,
+                border: `2px solid ${isOn ? '#4caf50' : '#424242'}`,
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 16px rgba(104, 112, 250, 0.3)' }
+              }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                     <Box display="flex" alignItems="center" gap={1}>
                       <LightbulbIcon sx={{ color: isOn ? '#4caf50' : '#666', fontSize: 28 }} />
-                      <Typography variant="h6" fontWeight="bold" color="#e0e0e0">
-                        Đèn {nodeId}
-                      </Typography>
+                      <Typography variant="h6" fontWeight="bold" color="#e0e0e0">Đèn {nodeId}</Typography>
                     </Box>
-                    <Chip
-                      label={isOn ? 'BẬT' : 'TẮT'}
-                      size="small"
-                      sx={{
-                        bgcolor: isOn ? '#4caf50' : '#666',
-                        color: '#fff',
-                        fontWeight: 'bold',
-                        fontSize: '0.7rem'
-                      }}
-                    />
+                    <Chip label={isOn ? 'BẬT' : 'TẮT'} size="small" sx={{ bgcolor: isOn ? '#4caf50' : '#666', color: '#fff' }} />
                   </Box>
+
                   <Box mb={2}>
                     <Box display="flex" justifyContent="space-between" mb={0.5}>
                       <Typography variant="caption" color="#b0b0b0">Độ sáng</Typography>
-                      <Typography variant="caption" fontWeight="bold" color="#e0e0e0">
-                        {lamp.lamp_dim}%
-                      </Typography>
+                      <Typography variant="caption" fontWeight="bold" color="#e0e0e0">{lamp.lamp_dim}%</Typography>
                     </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={lamp.lamp_dim}
-                      sx={{
-                        height: 8,
-                        borderRadius: 1,
-                        bgcolor: '#151a27',
-                        '& .MuiLinearProgress-bar': {
-                          bgcolor: isOn ? '#4caf50' : '#666',
-                          borderRadius: 1
-                        }
-                      }}
-                    />
+                    <LinearProgress variant="determinate" value={lamp.lamp_dim} sx={{
+                      height: 8, borderRadius: 1, bgcolor: '#151a27',
+                      '& .MuiLinearProgress-bar': { bgcolor: isOn ? '#4caf50' : '#666' }
+                    }} />
                   </Box>
-                  <Box
-                    sx={{
-                      bgcolor: '#151a27',
-                      borderRadius: 1.5,
-                      p: 2,
-                      mb: 1.5
-                    }}
-                  >
+
+                  <Box sx={{ bgcolor: '#151a27', borderRadius: 1.5, p: 2, mb: 1.5 }}>
                     <Typography variant="caption" color="#b0b0b0" display="block" mb={0.5}>
-                      Dự đoán tiêu thụ
+                      Dự báo AI (kWh/h)
                     </Typography>
                     <Typography variant="h5" fontWeight="bold" color="#6870fa">
-                      {prediction !== null && prediction !== undefined
-                        ? `${prediction.toFixed(2)} kWh/h`
-                        : 'Đang tính...'}
+                      {prediction !== undefined ? `${prediction.toFixed(3)} kWh/h` : 'Đang tính...'}
                     </Typography>
                   </Box>
-                  <Box
-                    sx={{
-                      bgcolor: '#151a27',
-                      borderRadius: 1.5,
-                      p: 2,
-                      mb: 1.5
-                    }}
-                  >
+
+                  <Box sx={{ bgcolor: '#151a27', borderRadius: 1.5, p: 2, mb: 1.5 }}>
                     <Typography variant="caption" color="#b0b0b0" display="block" mb={0.5}>
-                      Tổng tiêu thụ cộng dồn
+                      Tổng cộng dồn
                     </Typography>
                     <Typography variant="h5" fontWeight="bold" color="#9c27b0">
                       {totalConsumed} kWh
                     </Typography>
                   </Box>
+
                   <Box display="flex" alignItems="center" gap={1}>
                     {suggestion.icon}
-                    <Chip
-                      label={suggestion.text}
-                      color={suggestion.color}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        fontSize: '0.7rem',
-                        fontWeight: 'bold',
-                        flex: 1
-                      }}
-                    />
+                    <Chip label={suggestion.text} color={suggestion.color} size="small" variant="outlined" sx={{ flex: 1 }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -486,100 +448,33 @@ const MLPrediction = () => {
           );
         })}
       </Grid>
-      <Fab
-        color="primary"
-        aria-label="chat"
-        onClick={() => setChatOpen(true)}
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          bgcolor: '#6870fa',
-          '&:hover': { bgcolor: '#5a5fd4' }
-        }}
-      >
+
+      {/* Chatbot AI */}
+      <Fab color="primary" onClick={() => setChatOpen(true)} sx={{ position: 'fixed', bottom: 24, right: 24, bgcolor: '#6870fa' }}>
         <Badge badgeContent={messages.length > 1 ? messages.length - 1 : 0} color="error">
           <SmartToyIcon />
         </Badge>
       </Fab>
-      <Drawer
-        anchor="right"
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        PaperProps={{
-          sx: {
-            width: { xs: '100%', sm: 400 },
-            bgcolor: '#1e2538',
-          }
-        }}
-      >
+
+      <Drawer anchor="right" open={chatOpen} onClose={() => setChatOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 400 }, bgcolor: '#1e2538' } }}>
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ p: 2, bgcolor: '#151a27', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box display="flex" alignItems="center" gap={1}>
               <SmartToyIcon sx={{ color: '#6870fa' }} />
-              <Typography variant="h6" color="#e0e0e0" fontWeight="bold">
-                AI Assistant
-              </Typography>
+              <Typography variant="h6" color="#e0e0e0" fontWeight="bold">AI Assistant</Typography>
             </Box>
-            <IconButton onClick={() => setChatOpen(false)} size="small">
-              <CloseIcon sx={{ color: '#e0e0e0' }} />
-            </IconButton>
+            <IconButton onClick={() => setChatOpen(false)}><CloseIcon sx={{ color: '#e0e0e0' }} /></IconButton>
           </Box>
           <Divider />
           <Box sx={{ flex: 1, overflowY: 'auto', p: 2, bgcolor: '#0f121a' }}>
-            {messages.map((msg, idx) => (
-              <Box
-                key={idx}
-                sx={{
-                  display: 'flex',
-                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  mb: 2
-                }}
-              >
-                <Box
-                  sx={{
-                    maxWidth: '80%',
-                    display: 'flex',
-                    gap: 1,
-                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      bgcolor: msg.role === 'user' ? '#6870fa' : '#4caf50',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    {msg.role === 'user' ? (
-                      <PersonIcon sx={{ fontSize: 18, color: '#fff' }} />
-                    ) : (
-                      <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />
-                    )}
+            {messages.map((msg, i) => (
+              <Box key={i} sx={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', mb: 2 }}>
+                <Box sx={{ maxWidth: '80%', display: 'flex', gap: 1, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
+                  <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: msg.role === 'user' ? '#6870fa' : '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {msg.role === 'user' ? <PersonIcon sx={{ fontSize: 18, color: '#fff' }} /> : <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />}
                   </Box>
-                  <Paper
-                    elevation={2}
-                    sx={{
-                      p: 1.5,
-                      bgcolor: msg.role === 'user' ? '#6870fa' : '#2a3142',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: '#e0e0e0',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word'
-                      }}
-                    >
-                      {msg.content}
-                    </Typography>
+                  <Paper elevation={2} sx={{ p: 1.5, bgcolor: msg.role === 'user' ? '#6870fa' : '#2a3142', borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ color: '#e0e0e0', whiteSpace: 'pre-wrap' }}>{msg.content}</Typography>
                     <Typography variant="caption" sx={{ color: '#b0b0b0', mt: 0.5, display: 'block' }}>
                       {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                     </Typography>
@@ -587,26 +482,13 @@ const MLPrediction = () => {
                 </Box>
               </Box>
             ))}
-           
             {chatLoading && (
               <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    bgcolor: '#4caf50',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
+                <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />
                 </Box>
                 <Paper elevation={2} sx={{ p: 1.5, bgcolor: '#2a3142', borderRadius: 2 }}>
-                  <Box display="flex" gap={0.5}>
-                    <CircularProgress size={8} sx={{ color: '#6870fa' }} />
-                  </Box>
+                  <CircularProgress size={16} sx={{ color: '#6870fa' }} />
                 </Paper>
               </Box>
             )}
@@ -617,31 +499,14 @@ const MLPrediction = () => {
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Hỏi về đèn, năng lượng..."
+                placeholder="Hỏi về dự báo, đèn, năng lượng..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 disabled={chatLoading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    color: '#e0e0e0',
-                    bgcolor: '#0f121a',
-                    '& fieldset': { borderColor: '#2a3142' },
-                    '&:hover fieldset': { borderColor: '#6870fa' },
-                    '&.Mui-focused fieldset': { borderColor: '#6870fa' }
-                  }
-                }}
+                sx={{ '& .MuiOutlinedInput-root': { color: '#e0e0e0', bgcolor: '#0f121a' } }}
               />
-              <IconButton
-                color="primary"
-                onClick={sendMessage}
-                disabled={!input.trim() || chatLoading}
-                sx={{
-                  bgcolor: '#6870fa',
-                  '&:hover': { bgcolor: '#5a5fd4' },
-                  '&.Mui-disabled': { bgcolor: '#424242' }
-                }}
-              >
+              <IconButton onClick={sendMessage} disabled={!input.trim() || chatLoading} sx={{ bgcolor: '#6870fa', '&:hover': { bgcolor: '#5a5fd4' } }}>
                 <SendIcon sx={{ color: '#fff' }} />
               </IconButton>
             </Box>
@@ -651,4 +516,5 @@ const MLPrediction = () => {
     </Box>
   );
 };
+
 export default MLPrediction;
