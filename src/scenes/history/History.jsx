@@ -12,7 +12,6 @@ import {
   TableHead,
   TableRow,
   Pagination,
-  Chip,
   TextField,
   IconButton,
   Tooltip,
@@ -120,8 +119,6 @@ const History = () => {
     URL.revokeObjectURL(url);
   };
 
-  const isAll = group === "all";
-
   return (
     <Box sx={{ p: 1.5 }}>
       <Header title="Activity Log" subtitle="Giám sát hoạt động hệ thống" />
@@ -209,10 +206,10 @@ const History = () => {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Action</TableCell>
-              <TableCell>Time</TableCell>
-              <TableCell>IP</TableCell>
+              <TableCell sx={{ minWidth: 100 }}>User</TableCell>
+              <TableCell sx={{ minWidth: 200 }}>Action</TableCell>
+              <TableCell sx={{ minWidth: 130 }}>Time</TableCell>
+              <TableCell sx={{ minWidth: 100 }}>IP</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -224,21 +221,20 @@ const History = () => {
                   </TableCell>
 
                   <TableCell>
-                    {isAll ? (
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        {actionIcon(log.action)}
-                        <Typography fontSize="0.75rem">
-                          {log.action.replaceAll("_", " ")}
-                        </Typography>
-                      </Stack>
-                    ) : (
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        label={log.action.replaceAll("_", " ")}
-                        sx={{ fontSize: "0.7rem" }}
-                      />
-                    )}
+                    <Stack direction="row" spacing={0.75} alignItems="center">
+                      {actionIcon(log.action)}
+                      <Typography
+                        fontSize="0.75rem"
+                        sx={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: 300,
+                        }}
+                      >
+                        {log.action.replaceAll("_", " ")}
+                      </Typography>
+                    </Stack>
                   </TableCell>
 
                   <TableCell sx={{ fontSize: "0.75rem" }}>

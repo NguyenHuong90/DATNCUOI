@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Box,
-  Typography,
   Paper,
   Select,
   MenuItem,
@@ -14,126 +13,134 @@ import {
   TableRow,
   Pagination,
   Chip,
+  TextField,
+  IconButton,
+  Tooltip,
+  Typography,
 } from "@mui/material";
+
+import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import LoginIcon from "@mui/icons-material/Login";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import DevicesOtherIcon from "@mui/icons-material/DevicesOther";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+
 import Header from "../../components/Header";
 import axios from "axios";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 /* ===== NHÓM HÀNH VI ===== */
 const ACTION_GROUPS = {
-  all: { label: "Tất cả", actions: "ALL" },
-  auth: { label: "Đăng nhập", actions: ["login"] },
-  lamp: {
-    label: "Điều khiển đèn",
-    actions: ["set_lamp_on", "set_lamp_off", "set_lamp_brightness_to_50"],
-  },
-  schedule: {
-    label: "Lịch trình",
-    actions: ["add_schedule", "delete_schedule"],
-  },
-  user: {
-    label: "Quản lý người dùng",
-    actions: ["create_user", "update_user", "delete_user"],
-  },
+  all: { label: "Tất cả" },
+  auth: { label: "Đăng nhập" },
+  lamp: { label: "Điều khiển đèn" },
+  schedule: { label: "Lịch trình" },
+  user: { label: "Người dùng" },
+  node: { label: "Báo cáo từ Node" },
 };
 
-/* ===== ICON MAP ===== */
+/* ===== ICON THEO ACTION ===== */
 const actionIcon = (action) => {
   if (action === "login") return <LoginIcon fontSize="small" />;
-  if (action.startsWith("set_lamp"))
-    return <LightbulbOutlinedIcon fontSize="small" />;
-  if (action.includes("schedule"))
-    return <EventNoteOutlinedIcon fontSize="small" />;
-  if (action.includes("user"))
+  if (action.startsWith("set_lamp")) return <LightbulbOutlinedIcon fontSize="small" />;
+  if (action.includes("schedule")) return <EventNoteOutlinedIcon fontSize="small" />;
+  if (action.match(/(user|clear_activity_log|delete_activity_log)/))
     return <PersonOutlineIcon fontSize="small" />;
+  if (action === "node_report") return <DevicesOtherIcon fontSize="small" />;
   return <InfoOutlinedIcon fontSize="small" />;
 };
 
 const History = () => {
   const [logs, setLogs] = useState([]);
-  const [filteredLogs, setFilteredLogs] = useState([]);
-  const [group, setGroup] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all"); // all | today | yesterday
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [group, setGroup] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
   const limit = 10;
 
-  /* ===== FETCH LOG ===== */
+  /* ===== FETCH LOGS - GỬI GROUP VÀ DATE VÀO BACKEND ===== */
   const fetchLogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
+
+      const params = {
+        page,
+        limit,
+      };
+      if (group !== "all") params.group = group;
+      if (fromDate) params.startDate = fromDate;
+      if (toDate) params.endDate = toDate;
+
       const res = await axios.get(`${API_BASE}/api/activitylog`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page, limit },
+        params,
       });
 
       setLogs(res.data.logs || []);
       setTotalPages(res.data.totalPages || 1);
     } catch (err) {
-      console.error("Lỗi lấy log:", err);
+      console.error("Fetch log error:", err);
     }
-  }, [page]);
+  }, [page, group, fromDate, toDate]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  /* ===== FILTER LOG ===== */
-  useEffect(() => {
-    let result = logs;
+  /* ===== EXPORT CSV ===== */
+  const exportCSV = () => {
+    if (!logs.length) return;
 
-    // lọc theo nhóm hành vi
-    if (group !== "all") {
-      const actions = ACTION_GROUPS[group].actions;
-      result = result.filter((l) => actions.includes(l.action));
-    }
+    const header = ["User", "Action", "Time", "IP"];
+    const rows = logs.map((l) => [
+      l.userId?.username || "N/A",
+      l.action,
+      format(new Date(l.timestamp), "yyyy-MM-dd HH:mm:ss"),
+      l.ip || "-",
+    ]);
 
-    // lọc theo ngày
-    if (dateFilter === "today") {
-      result = result.filter((l) => isToday(new Date(l.timestamp)));
-    }
+    const csv =
+      [header, ...rows]
+        .map((r) => r.map((x) => `"${x}"`).join(","))
+        .join("\n");
 
-    if (dateFilter === "yesterday") {
-      result = result.filter((l) => isYesterday(new Date(l.timestamp)));
-    }
-
-    setFilteredLogs(result);
-  }, [logs, group, dateFilter]);
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `activity_log_${format(new Date(), "yyyyMMdd_HHmm")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const isAll = group === "all";
 
   return (
     <Box sx={{ p: 1.5 }}>
-      <Header
-        title="Activity Log"
-        subtitle="Giám sát hoạt động hệ thống"
-      />
+      <Header title="Activity Log" subtitle="Giám sát hoạt động hệ thống" />
 
-      {/* FILTER */}
+      {/* FILTER BAR */}
       <Paper
         sx={{
-          p: 1,
-          mb: 1.5,
+          p: 0.75,
+          mb: 1,
           backgroundColor: "transparent",
           boxShadow: "none",
           border: "1px solid",
           borderColor: "divider",
-          borderRadius: 1.5,
+          borderRadius: 1,
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Typography fontSize="0.8rem" fontWeight={500}>
-            Bộ lọc
-          </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <FilterAltOutlinedIcon sx={{ fontSize: 18 }} />
 
-          {/* FILTER HÀNH VI */}
           <Select
             size="small"
             value={group}
@@ -141,26 +148,50 @@ const History = () => {
               setGroup(e.target.value);
               setPage(1);
             }}
-            sx={{ minWidth: 160 }}
+            sx={{ minWidth: 150, fontSize: "0.75rem", height: 30 }}
           >
             {Object.entries(ACTION_GROUPS).map(([key, g]) => (
-              <MenuItem key={key} value={key}>
+              <MenuItem key={key} value={key} sx={{ fontSize: "0.75rem" }}>
                 {g.label}
               </MenuItem>
             ))}
           </Select>
 
-          {/* FILTER NGÀY */}
-          <Select
+          <CalendarMonthOutlinedIcon sx={{ fontSize: 18 }} />
+
+          <TextField
             size="small"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="all">Tất cả ngày</MenuItem>
-            <MenuItem value="today">Hôm nay</MenuItem>
-            <MenuItem value="yesterday">Hôm qua</MenuItem>
-          </Select>
+            type="date"
+            label="Từ"
+            InputLabelProps={{ shrink: true }}
+            value={fromDate}
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setPage(1);
+            }}
+            sx={{ width: 125, "& .MuiInputBase-root": { height: 30, fontSize: "0.75rem" } }}
+          />
+
+          <TextField
+            size="small"
+            type="date"
+            label="Đến"
+            InputLabelProps={{ shrink: true }}
+            value={toDate}
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setPage(1);
+            }}
+            sx={{ width: 125, "& .MuiInputBase-root": { height: 30, fontSize: "0.75rem" } }}
+          />
+
+          <Box flexGrow={1} />
+
+          <Tooltip title="Export CSV">
+            <IconButton size="small" onClick={exportCSV}>
+              <DownloadOutlinedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Paper>
 
@@ -172,43 +203,31 @@ const History = () => {
           boxShadow: "none",
           border: "1px solid",
           borderColor: "divider",
-          borderRadius: 1.5,
+          borderRadius: 1,
         }}
       >
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ py: 0.7 }}>User</TableCell>
-              <TableCell sx={{ py: 0.7 }}>Action</TableCell>
-              <TableCell sx={{ py: 0.7 }}>Time</TableCell>
-              <TableCell sx={{ py: 0.7 }}>IP</TableCell>
+              <TableCell>User</TableCell>
+              <TableCell>Action</TableCell>
+              <TableCell>Time</TableCell>
+              <TableCell>IP</TableCell>
             </TableRow>
           </TableHead>
-
           <TableBody>
-            {filteredLogs.length ? (
-              filteredLogs.map((log) => (
-                <TableRow
-                  key={log._id}
-                  hover
-                  sx={{ "&:hover": { backgroundColor: "action.hover" } }}
-                >
-                  <TableCell sx={{ py: 0.55 }}>
-                    <Typography fontSize="0.75rem" fontWeight={600}>
-                      {log.userId?.username || "N/A"}
-                    </Typography>
+            {logs.length > 0 ? (
+              logs.map((log) => (
+                <TableRow key={log._id} hover>
+                  <TableCell sx={{ fontSize: "0.75rem", fontWeight: 600 }}>
+                    {log.userId?.username || "N/A"}
                   </TableCell>
 
-                  <TableCell sx={{ py: 0.55 }}>
+                  <TableCell>
                     {isAll ? (
                       <Stack direction="row" spacing={0.5} alignItems="center">
-                        <Box color="text.secondary">
-                          {actionIcon(log.action)}
-                        </Box>
-                        <Typography
-                          fontSize="0.75rem"
-                          color="text.secondary"
-                        >
+                        {actionIcon(log.action)}
+                        <Typography fontSize="0.75rem">
                           {log.action.replaceAll("_", " ")}
                         </Typography>
                       </Stack>
@@ -222,15 +241,12 @@ const History = () => {
                     )}
                   </TableCell>
 
-                  <TableCell sx={{ py: 0.55 }}>
-                    <Typography fontSize="0.75rem">
-                      {format(new Date(log.timestamp), "dd/MM HH:mm")}
-                    </Typography>
+                  <TableCell sx={{ fontSize: "0.75rem" }}>
+                    {format(new Date(log.timestamp), "dd/MM/yyyy HH:mm")}
                   </TableCell>
 
                   <TableCell
                     sx={{
-                      py: 0.55,
                       fontSize: "0.7rem",
                       fontFamily: "monospace",
                       color: "text.secondary",
