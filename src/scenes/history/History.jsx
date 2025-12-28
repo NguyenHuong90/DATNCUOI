@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Box,
-  Typography,
   Paper,
   Select,
   MenuItem,
@@ -17,6 +16,7 @@ import {
   TextField,
   IconButton,
   Tooltip,
+  Typography,
 } from "@mui/material";
 
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
@@ -26,6 +26,7 @@ import LoginIcon from "@mui/icons-material/Login";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import DevicesOtherIcon from "@mui/icons-material/DevicesOther";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 import Header from "../../components/Header";
@@ -36,53 +37,50 @@ const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 /* ===== NHÓM HÀNH VI ===== */
 const ACTION_GROUPS = {
-  all: { label: "Tất cả", actions: "ALL" },
-  auth: { label: "Đăng nhập", actions: ["login"] },
-  lamp: {
-    label: "Điều khiển đèn",
-    actions: ["set_lamp_on", "set_lamp_off", "set_lamp_brightness_to_50"],
-  },
-  schedule: {
-    label: "Lịch trình",
-    actions: ["add_schedule", "delete_schedule"],
-  },
-  user: {
-    label: "Người dùng",
-    actions: ["create_user", "update_user", "delete_user"],
-  },
+  all: { label: "Tất cả" },
+  auth: { label: "Đăng nhập" },
+  lamp: { label: "Điều khiển đèn" },
+  schedule: { label: "Lịch trình" },
+  user: { label: "Người dùng" },
+  node: { label: "Báo cáo từ Node" },
 };
 
-/* ===== ICON HÀNH VI ===== */
+/* ===== ICON THEO ACTION ===== */
 const actionIcon = (action) => {
   if (action === "login") return <LoginIcon fontSize="small" />;
-  if (action.startsWith("set_lamp"))
-    return <LightbulbOutlinedIcon fontSize="small" />;
-  if (action.includes("schedule"))
-    return <EventNoteOutlinedIcon fontSize="small" />;
-  if (action.includes("user"))
+  if (action.startsWith("set_lamp")) return <LightbulbOutlinedIcon fontSize="small" />;
+  if (action.includes("schedule")) return <EventNoteOutlinedIcon fontSize="small" />;
+  if (action.match(/(user|clear_activity_log|delete_activity_log)/))
     return <PersonOutlineIcon fontSize="small" />;
+  if (action === "node_report") return <DevicesOtherIcon fontSize="small" />;
   return <InfoOutlinedIcon fontSize="small" />;
 };
 
 const History = () => {
   const [logs, setLogs] = useState([]);
-  const [filteredLogs, setFilteredLogs] = useState([]);
-
+  const [totalPages, setTotalPages] = useState(1);
   const [group, setGroup] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
 
-  /* ===== FETCH LOG ===== */
+  /* ===== FETCH LOGS - GỬI GROUP VÀ DATE VÀO BACKEND ===== */
   const fetchLogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
+
+      const params = {
+        page,
+        limit,
+      };
+      if (group !== "all") params.group = group;
+      if (fromDate) params.startDate = fromDate;
+      if (toDate) params.endDate = toDate;
+
       const res = await axios.get(`${API_BASE}/api/activitylog`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page, limit },
+        params,
       });
 
       setLogs(res.data.logs || []);
@@ -90,49 +88,22 @@ const History = () => {
     } catch (err) {
       console.error("Fetch log error:", err);
     }
-  }, [page]);
+  }, [page, group, fromDate, toDate]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  /* ===== FILTER ===== */
-  useEffect(() => {
-    let result = logs;
-
-    if (group !== "all") {
-      const actions = ACTION_GROUPS[group].actions;
-      result = result.filter((l) => actions.includes(l.action));
-    }
-
-    if (fromDate) {
-      const from = new Date(fromDate);
-      result = result.filter(
-        (l) => new Date(l.timestamp) >= from
-      );
-    }
-
-    if (toDate) {
-      const to = new Date(toDate);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(
-        (l) => new Date(l.timestamp) <= to
-      );
-    }
-
-    setFilteredLogs(result);
-  }, [logs, group, fromDate, toDate]);
-
   /* ===== EXPORT CSV ===== */
   const exportCSV = () => {
-    if (!filteredLogs.length) return;
+    if (!logs.length) return;
 
     const header = ["User", "Action", "Time", "IP"];
-    const rows = filteredLogs.map((l) => [
-      l.userId?.username || "",
+    const rows = logs.map((l) => [
+      l.userId?.username || "N/A",
       l.action,
       format(new Date(l.timestamp), "yyyy-MM-dd HH:mm:ss"),
-      l.ip || "",
+      l.ip || "-",
     ]);
 
     const csv =
@@ -140,14 +111,12 @@ const History = () => {
         .map((r) => r.map((x) => `"${x}"`).join(","))
         .join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-
     const a = document.createElement("a");
     a.href = url;
-    a.download = `activity_log_${Date.now()}.csv`;
+    a.download = `activity_log_${format(new Date(), "yyyyMMdd_HHmm")}.csv`;
     a.click();
-
     URL.revokeObjectURL(url);
   };
 
@@ -155,9 +124,9 @@ const History = () => {
 
   return (
     <Box sx={{ p: 1.5 }}>
-      <Header title="Lịch sử hoạt động" subtitle="Giám sát hoạt động hệ thống" />
+      <Header title="Activity Log" subtitle="Giám sát hoạt động hệ thống" />
 
-      {/* ===== FILTER BAR (NHỎ GỌN) ===== */}
+      {/* FILTER BAR */}
       <Paper
         sx={{
           p: 0.75,
@@ -179,18 +148,10 @@ const History = () => {
               setGroup(e.target.value);
               setPage(1);
             }}
-            sx={{
-              minWidth: 135,
-              fontSize: "0.75rem",
-              height: 30,
-            }}
+            sx={{ minWidth: 150, fontSize: "0.75rem", height: 30 }}
           >
             {Object.entries(ACTION_GROUPS).map(([key, g]) => (
-              <MenuItem
-                key={key}
-                value={key}
-                sx={{ fontSize: "0.75rem" }}
-              >
+              <MenuItem key={key} value={key} sx={{ fontSize: "0.75rem" }}>
                 {g.label}
               </MenuItem>
             ))}
@@ -204,14 +165,11 @@ const History = () => {
             label="Từ"
             InputLabelProps={{ shrink: true }}
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            sx={{
-              width: 125,
-              "& .MuiInputBase-root": {
-                height: 30,
-                fontSize: "0.75rem",
-              },
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setPage(1);
             }}
+            sx={{ width: 125, "& .MuiInputBase-root": { height: 30, fontSize: "0.75rem" } }}
           />
 
           <TextField
@@ -220,14 +178,11 @@ const History = () => {
             label="Đến"
             InputLabelProps={{ shrink: true }}
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            sx={{
-              width: 125,
-              "& .MuiInputBase-root": {
-                height: 30,
-                fontSize: "0.75rem",
-              },
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setPage(1);
             }}
+            sx={{ width: 125, "& .MuiInputBase-root": { height: 30, fontSize: "0.75rem" } }}
           />
 
           <Box flexGrow={1} />
@@ -240,7 +195,7 @@ const History = () => {
         </Stack>
       </Paper>
 
-      {/* ===== TABLE ===== */}
+      {/* TABLE */}
       <TableContainer
         component={Paper}
         sx={{
@@ -260,10 +215,9 @@ const History = () => {
               <TableCell>IP</TableCell>
             </TableRow>
           </TableHead>
-
           <TableBody>
-            {filteredLogs.length ? (
-              filteredLogs.map((log) => (
+            {logs.length > 0 ? (
+              logs.map((log) => (
                 <TableRow key={log._id} hover>
                   <TableCell sx={{ fontSize: "0.75rem", fontWeight: 600 }}>
                     {log.userId?.username || "N/A"}
@@ -315,7 +269,7 @@ const History = () => {
         </Table>
       </TableContainer>
 
-      {/* ===== PAGINATION ===== */}
+      {/* PAGINATION */}
       <Stack alignItems="center" mt={1.5}>
         <Pagination
           count={totalPages}
