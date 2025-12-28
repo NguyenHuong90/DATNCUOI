@@ -232,7 +232,7 @@ const Dashboard = () => {
         <Grid item xs={12} md={5}>
           <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, height: 280 }}>
             <CardContent sx={{ p: 2 }}>
-              <Typography variant="subtitle1" fontWeight="600" color="#fff" mb={1.5}>
+              <Typography variant="subtitle1" fontWeight="600" color="#ff0000" mb={1.5}>
                 Trạng thái đèn theo khu vực
               </Typography>
               <Box height={210}>
@@ -246,7 +246,7 @@ const Dashboard = () => {
           <Card sx={{ bgcolor: getColor(colors, "primary.400", "#1F2A40"), borderRadius: 2, height: 280 }}>
             <CardContent sx={{ p: 0, height: "100%", display: "flex", flexDirection: "column" }}>
               <Box px={2} pt={2} pb={1}>
-                <Typography variant="subtitle1" fontWeight="600" color="#fff">
+                <Typography variant="subtitle1" fontWeight="600" color="#fff0000">
                   Vị trí đèn chiếu sáng
                 </Typography>
               </Box>
