@@ -784,11 +784,11 @@ const MLPrediction = () => {
   }, [chatOpen]);
 
   // Màu từ theme
-  const bgPrimary = getColor(colors, 'primary.500', '#0f121a');
-  const bgCard = getColor(colors, 'primary.400', '#1e2538');
-  const bgDeep = getColor(colors, 'primary.600', '#151a27');
-  const textPrimary = getColor(colors, 'grey.100', '#e0e0e0');
-  const textSecondary = getColor(colors, 'grey.500', '#b0b0b0');
+  const bgPrimary = getColor(colors, 'primary.500', mode === 'night' ? '#f8fafc' : '#0f121a');  
+  const bgCard    = getColor(colors, 'primary.400', mode === 'night' ? '#ffffff' : '#1e2538');  
+  const bgDeep    = getColor(colors, 'primary.600', mode === 'night' ? '#e2e8f0' : '#151a27');
+  const textPrimary   = getColor(colors, 'grey.100', mode === 'night' ? '#1e293b' : '#e0e0e0');
+  const textSecondary = getColor(colors, 'grey.500', mode === 'night' ? '#475569' : '#b0b0b0');
   const accent = getColor(colors, 'secondary.400', '#6870fa');
   const success = '#4caf50';
 
