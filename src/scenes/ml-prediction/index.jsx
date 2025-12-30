@@ -486,7 +486,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Typography,
-  Alert,
   CircularProgress,
   Card,
   CardContent,
@@ -504,8 +503,6 @@ import {
 } from '@mui/material';
 import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -514,14 +511,8 @@ import PersonIcon from '@mui/icons-material/Person';
 import * as tf from '@tensorflow/tfjs';
 import { useLightState } from '../../hooks/useLightState';
 
-// Hàm helper lấy màu từ tokens giống Dashboard
-const getColor = (colors, path, fallback) => {
-  return path.split(".").reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : undefined), colors) || fallback;
-};
-
 const MLPrediction = () => {
   const theme = useTheme();
-  const colors = theme.palette?.mode ? require("../../theme").tokens(theme.palette.mode) : {};
 
   const { lightStates, lightHistory } = useLightState();
   const [predictions, setPredictions] = useState({});
@@ -549,7 +540,7 @@ const MLPrediction = () => {
     setEstimatedCostPerDay(costPerDay);
   }, [predictions]);
 
-  // Dữ liệu giả tối ưu cho bóng ~13W
+  // Prepare data
   const prepareData = () => {
     const features = [];
     const labels = [];
@@ -564,6 +555,7 @@ const MLPrediction = () => {
       features.push([lampDim / 100.0, currentA, hoursOn]);
       labels.push(Math.max(0, parseFloat(energyConsumed) || 0));
     });
+
     const syntheticSamples = [
       { dim: 100, powerW: 13, hours: 1, energy: 0.013 },
       { dim: 100, powerW: 12, hours: 1, energy: 0.012 },
@@ -581,22 +573,25 @@ const MLPrediction = () => {
       { dim: 100, powerW: 13, hours: 2, energy: 0.026 },
       { dim: 75, powerW: 13, hours: 3, energy: 0.02925 },
     ];
+
     syntheticSamples.forEach(s => {
       const currentA = s.powerW / 220;
       features.push([s.dim / 100.0, currentA, s.hours]);
       labels.push(s.energy);
     });
+
     for (let i = 0; i < 30; i++) {
       features.push([0, 0, 0.5 + Math.random() * 8]);
       labels.push(0);
-    });
+    }
+
     return {
       features: tf.tensor2d(features),
       labels: tf.tensor2d(labels, [labels.length, 1]),
     };
   };
 
-  // Train AI chỉ 1 lần
+  // Train model
   useEffect(() => {
     let isMounted = true;
     const trainModel = async () => {
@@ -633,7 +628,6 @@ const MLPrediction = () => {
       isMounted = false;
       if (modelRef.current) {
         modelRef.current.dispose();
-        modelRef.current = null;
       }
     };
   }, []);
@@ -689,32 +683,29 @@ const MLPrediction = () => {
     };
   };
 
-  // Chatbot siêu thông minh, ngắn gọn, thân thiện
   const generateSmartResponse = (question, context) => {
     const q = question.toLowerCase().trim();
     if (q.match(/tiền|chi phí|điện|bao nhiêu tiền|tốn/i)) {
-      if (context.isAllOff) {
-        return `🎉 Tuyệt vời! Tất cả đèn đang tắt → **0 VNĐ/giờ**`;
-      }
-      return `💡 Chi phí hiện tại:\n• **${context.costPerHour.toLocaleString()} VNĐ/giờ**\n• Nếu chạy cả ngày: **${context.costPerDay.toLocaleString()} VNĐ**`;
+      if (context.isAllOff) return `Tuyệt vời! Tất cả đèn đang tắt → **0 VNĐ/giờ**`;
+      return `Chi phí hiện tại:\n• **${context.costPerHour.toLocaleString()} VNĐ/giờ**\n• Nếu chạy cả ngày: **${context.costPerDay.toLocaleString()} VNĐ**`;
     }
     if (q.includes('đèn') && q.includes('bao nhiêu')) {
-      if (context.isAllOff) return `Hiện tại **không có đèn nào bật** 😊`;
-      return `🔆 Có **${context.on}/${context.total}** đèn đang bật`;
+      if (context.isAllOff) return `Hiện tại **không có đèn nào bật** `;
+      return `Có **${context.on}/${context.total}** đèn đang bật`;
     }
     if (q.match(/tiết kiệm|gợi ý|giảm/i)) {
       const high = context.lamps.filter(l => parseFloat(l.prediction) > 0.012 && l.state === 'ON');
-      if (high.length === 0) return `👍 Hệ thống đang rất tiết kiệm rồi!`;
-      return `💰 Gợi ý tiết kiệm:\n${high.map(l => `• Đèn ${l.id}: giảm xuống 70% → tiết kiệm ~${Math.round(l.costPerHour * 0.3).toLocaleString()} VNĐ/giờ`).join('\n')}`;
+      if (high.length === 0) return `Hệ thống đang rất tiết kiệm rồi!`;
+      return `Gợi ý tiết kiệm:\n${high.map(l => `• Đèn ${l.id}: giảm xuống 70% → tiết kiệm ~${Math.round(l.costPerHour * 0.3).toLocaleString()} VNĐ/giờ`).join('\n')}`;
     }
     if (q.match(/đèn\s*\d+/i)) {
       const id = q.match(/\d+/)[0];
       const lamp = context.lamps.find(l => l.id === id);
       if (!lamp) return `Không tìm thấy Đèn ${id}`;
       if (lamp.state === 'OFF') return `Đèn ${id} đang tắt → 0 VNĐ`;
-      return `💡 Đèn ${id}:\n• Độ sáng: ${lamp.brightness}%\n• Dự báo: ${lamp.prediction} kWh/h\n• Tiền/giờ: **${lamp.costPerHour.toLocaleString()} VNĐ**`;
+      return `Đèn ${id}:\n• Độ sáng: ${lamp.brightness}%\n• Dự báo: ${lamp.prediction} kWh/h\n• Tiền/giờ: **${lamp.costPerHour.toLocaleString()} VNĐ**`;
     }
-    return `Chào bạn! Tôi giúp bạn tiết kiệm điện 💰\n\nHỏi tôi:\n• "Tiền điện hiện tại?"\n• "Có bao nhiêu đèn bật?"\n• "Gợi ý tiết kiệm"\n• "Đèn 1 tốn bao nhiêu?"`;
+    return `Chào bạn! Tôi giúp bạn tiết kiệm điện \n\nHỏi tôi:\n• "Tiền điện hiện tại?"\n• "Có bao nhiêu đèn bật?"\n• "Gợi ý tiết kiệm"\n• "Đèn 1 tốn bao nhiêu?"`;
   };
 
   const sendMessage = async () => {
@@ -739,23 +730,24 @@ const MLPrediction = () => {
     if (chatOpen && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: 'Xin chào! 👋\nTôi là AI giúp bạn tiết kiệm tiền điện.\n\nHỏi tôi về chi phí, số đèn bật, hoặc gợi ý tiết kiệm nhé!',
+        content: 'Xin chào! \nTôi là AI giúp bạn tiết kiệm tiền điện.\n\nHỏi tôi về chi phí, số đèn bật, hoặc gợi ý tiết kiệm nhé!',
         timestamp: new Date()
       }]);
     }
   }, [chatOpen]);
 
-  // Các màu động theo theme (dark / night)
-  const bgMain = theme.palette.mode === 'dark' ? '#0f121a' : '#ffffff';
-  const cardBg = theme.palette.mode === 'dark' ? '#1e2538' : '#f5f5f5';
-  const innerBg = theme.palette.mode === 'dark' ? '#151a27' : '#e0e0e0';
-  const textPrimary = theme.palette.mode === 'dark' ? '#e0e0e0' : '#212121';
-  const textSecondary = theme.palette.mode === 'dark' ? '#b0b0b0' : '#616161';
-  const chatDrawerBg = theme.palette.mode === 'dark' ? '#1e2538' : '#ffffff';
-  const chatHeaderBg = theme.palette.mode === 'dark' ? '#151a27' : '#f0f0f0';
-  const chatInputBg = theme.palette.mode === 'dark' ? '#0f121a' : '#ffffff';
-  const userBubble = theme.palette.mode === 'dark' ? '#6870fa' : '#3f51b5';
-  const assistantBubble = theme.palette.mode === 'dark' ? '#2a3142' : '#e3f2fd';
+  // Theme colors
+  const isDark = theme.palette.mode === 'dark';
+  const bgMain = isDark ? '#0f121a' : '#ffffff';
+  const cardBg = isDark ? '#1e2538' : '#f5f5f5';
+  const innerBg = isDark ? '#151a27' : '#e0e0e0';
+  const textPrimary = isDark ? '#e0e0e0' : '#212121';
+  const textSecondary = isDark ? '#b0b0b0' : '#616161';
+  const chatBg = isDark ? '#1e2538' : '#ffffff';
+  const chatHeader = isDark ? '#151a27' : '#f0f0f0';
+  const chatInputBg = isDark ? '#0f121a' : '#ffffff';
+  const userBubble = isDark ? '#6870fa' : '#3f51b5';
+  const assistantBubble = isDark ? '#2a3142' : '#e3f2fd';
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, bgcolor: bgMain, minHeight: '100vh', color: textPrimary }}>
@@ -827,7 +819,7 @@ const MLPrediction = () => {
               <Card sx={{
                 bgcolor: cardBg,
                 borderRadius: 2,
-                border: `2px solid ${isOn ? '#4caf50' : theme.palette.mode === 'dark' ? '#424242' : '#bdbdbd'}`,
+                border: `2px solid ${isOn ? '#4caf50' : isDark ? '#424242' : '#bdbdbd'}`,
                 height: '100%',
               }}>
                 <CardContent sx={{ p: 1.5 }}>
@@ -844,7 +836,7 @@ const MLPrediction = () => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={lamp.lamp_dim}
+                    value={lamp.lamp_dim || 0}
                     sx={{
                       height: 6,
                       borderRadius: 1,
@@ -854,7 +846,7 @@ const MLPrediction = () => {
                     }}
                   />
                   <Typography variant="caption" color={textSecondary} display="block" mb={1}>
-                    {lamp.lamp_dim}%
+                    {lamp.lamp_dim || 0}%
                   </Typography>
                   <Box sx={{ bgcolor: innerBg, borderRadius: 1.5, p: 1.5, textAlign: 'center' }}>
                     <Typography variant="caption" color={textSecondary} display="block">
@@ -874,22 +866,23 @@ const MLPrediction = () => {
         })}
       </Grid>
 
-      {/* Chatbot Fab */}
+      {/* Chatbot */}
       <Fab color="primary" onClick={() => setChatOpen(true)} sx={{ position: 'fixed', bottom: 16, right: 16, bgcolor: '#6870fa' }}>
         <Badge badgeContent={messages.length > 1 ? messages.length - 1 : 0} color="error">
           <SmartToyIcon />
         </Badge>
       </Fab>
 
-      {/* Chatbot Drawer */}
-      <Drawer anchor="right" open={chatOpen} onClose={() => setChatOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 380 }, bgcolor: chatDrawerBg } }}>
+      <Drawer anchor="right" open={chatOpen} onClose={() => setChatOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 380 }, bgcolor: chatBg } }}>
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ p: 2, bgcolor: chatHeaderBg, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ p: 2, bgcolor: chatHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box display="flex" alignItems="center" gap={1}>
               <SmartToyIcon sx={{ color: '#6870fa' }} />
               <Typography variant="h6" color={textPrimary} fontWeight="bold">AI Tiết Kiệm Điện</Typography>
             </Box>
-            <IconButton onClick={() => setChatOpen(false)}><CloseIcon sx={{ color: textPrimary }} /></IconButton>
+            <IconButton onClick={() => setChatOpen(false)}>
+              <CloseIcon sx={{ color: textPrimary }} />
+            </IconButton>
           </Box>
           <Divider />
           <Box sx={{ flex: 1, overflowY: 'auto', p: 2, bgcolor: bgMain }}>
@@ -900,7 +893,9 @@ const MLPrediction = () => {
                     {msg.role === 'user' ? <PersonIcon sx={{ fontSize: 18, color: '#fff' }} /> : <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />}
                   </Box>
                   <Paper elevation={2} sx={{ p: 1.5, bgcolor: msg.role === 'user' ? userBubble : assistantBubble, borderRadius: 2 }}>
-                    <Typography variant="body2" sx={{ color: msg.role === 'user' ? '#fff' : '#212121', whiteSpace: 'pre-wrap' }}>{msg.content}</Typography>
+                    <Typography variant="body2" sx={{ color: msg.role === 'user' ? '#fff' : '#212121', whiteSpace: 'pre-wrap' }}>
+                      {msg.content}
+                    </Typography>
                   </Paper>
                 </Box>
               </Box>
@@ -917,7 +912,7 @@ const MLPrediction = () => {
             )}
             <div ref={messagesEndRef} />
           </Box>
-          <Box sx={{ p: 2, bgcolor: chatHeaderBg, borderTop: `1px solid ${theme.palette.divider}` }}>
+          <Box sx={{ p: 2, bgcolor: chatHeader, borderTop: `1px solid ${theme.palette.divider}` }}>
             <Box display="flex" gap={1}>
               <TextField
                 fullWidth
