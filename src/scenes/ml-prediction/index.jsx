@@ -785,7 +785,7 @@ const MLPrediction = () => {
 
   // Màu từ theme
   const bgPrimary = getColor(colors, 'primary.500', '#0f121a');
-  const bgCard = getColor(colors, 'primary.500', '#1e2538');
+  const bgCard = getColor(colors, 'primary.400', '#1e2538');
   const bgDeep = getColor(colors, 'primary.600', '#151a27');
   const textPrimary = getColor(colors, 'grey.100', '#e0e0e0');
   const textSecondary = getColor(colors, 'grey.500', '#b0b0b0');
