@@ -784,13 +784,14 @@ const MLPrediction = () => {
   }, [chatOpen]);
 
   // Màu từ theme
-  const bgPrimary = getColor(colors, 'primary.500', mode === 'night' ? '#f8fafc' : '#0f121a');  
-  const bgCard    = getColor(colors, 'primary.400', mode === 'night' ? '#ffffff' : '#1e2538');  
-  const bgDeep    = getColor(colors, 'primary.600', mode === 'night' ? '#e2e8f0' : '#151a27');
-  const textPrimary   = getColor(colors, 'grey.100', mode === 'night' ? '#1e293b' : '#e0e0e0');
-  const textSecondary = getColor(colors, 'grey.500', mode === 'night' ? '#475569' : '#b0b0b0');
-  const accent = getColor(colors, 'secondary.400', '#6870fa');
-  const success = '#4caf50';
+  const bgPrimary = mode === 'night' ? '#f8fafc' : getColor(colors, 'primary.500', '#0f121a');   // nền khu vực chat
+  const bgCard    = mode === 'night' ? '#ffffff' : getColor(colors, 'primary.400', '#1e2538');   // nền toàn bộ Drawer chatbot
+  const bgDeep    = mode === 'night' ? '#e2e8f0' : getColor(colors, 'primary.600', '#151a27');   // header + footer chat
+  
+  const textPrimary   = mode === 'night' ? '#1e293b' : getColor(colors, 'grey.100', '#e0e0e0'); // chữ chính: tối khi night
+  const textSecondary = mode === 'night' ? '#475569' : getColor(colors, 'grey.500', '#b0b0b0'); // chữ phụ
+  const accent        = mode === 'night' ? '#6366f1' : getColor(colors, 'secondary.400', '#6870fa'); // tím đẹp hơn khi sáng
+  const success       = mode === 'night' ? '#22c55e' : '#4caf50'; // xanh lá sáng hơn;
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, bgcolor: bgPrimary, minHeight: '100vh' }}>
