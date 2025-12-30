@@ -488,7 +488,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Typography,
-  Alert,
   CircularProgress,
   Card,
   CardContent,
@@ -514,34 +513,35 @@ import PersonIcon from '@mui/icons-material/Person';
 import * as tf from '@tensorflow/tfjs';
 import { useLightState } from '../../hooks/useLightState';
 
-// Hàm helper lấy màu từ theme giống Dashboard
-const getColor = (colors: any, path: string, fallback: string) => {
-  return path.split(".").reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : undefined), colors) || fallback;
+// Helper lấy màu từ theme (giống Dashboard)
+const getColor = (colors, path, fallback) => {
+  return path.split('.').reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : undefined), colors) || fallback;
 };
 
 const MLPrediction = () => {
   const theme = useTheme();
-  const mode = theme.palette.mode; // "dark" | "night"
-  const colors = mode ? require("../../theme").tokens(mode) : {};
+  const mode = theme.palette.mode; // "dark" hoặc "night"
+  const colors = mode ? require('../../theme').tokens(mode) : {};
 
   const { lightStates, lightHistory } = useLightState();
-  const [predictions, setPredictions] = useState<{ [key: string]: number }>({});
+
+  const [predictions, setPredictions] = useState({});
   const [estimatedCostPerHour, setEstimatedCostPerHour] = useState(0);
   const [estimatedCostPerDay, setEstimatedCostPerDay] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
-  const modelRef = useRef<any>(null);
+
+  const modelRef = useRef(null);
   const hasInitialTrain = useRef(false);
   const ELECTRICITY_PRICE = 2000;
 
-  // Chatbot states
+  // Chatbot
   const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef(null);
 
-  // Tính chi phí điện
+  // Tính chi phí theo dự báo
   useEffect(() => {
     const totalPrediction = Object.values(predictions).reduce((sum, val) => sum + (val || 0), 0);
     const costPerHour = Math.round(totalPrediction * ELECTRICITY_PRICE);
@@ -550,23 +550,26 @@ const MLPrediction = () => {
     setEstimatedCostPerDay(costPerDay);
   }, [predictions]);
 
-  // Dữ liệu giả tối ưu cho bóng ~13W
+  // Chuẩn bị dữ liệu huấn luyện (thực tế + dữ liệu giả)
   const prepareData = () => {
-    const features: number[][] = [];
-    const labels: number[] = [];
+    const features = [];
+    const labels = [];
 
     (lightHistory || []).forEach(hist => {
       if (!hist?.details) return;
       const { lampDim, currentA, energyConsumed, startTime, endTime } = hist.details;
       if (lampDim === undefined || currentA === undefined || energyConsumed === undefined) return;
+
       const start = new Date(startTime || hist.timestamp);
       const end = new Date(endTime || new Date());
       const hoursOn = (end - start) / (1000 * 60 * 60);
       if (hoursOn <= 0) return;
+
       features.push([lampDim / 100.0, currentA, hoursOn]);
       labels.push(Math.max(0, parseFloat(energyConsumed) || 0));
     });
 
+    // Dữ liệu giả cho bóng LED ~13W
     const syntheticSamples = [
       { dim: 100, powerW: 13, hours: 1, energy: 0.013 },
       { dim: 100, powerW: 12, hours: 1, energy: 0.012 },
@@ -591,6 +594,7 @@ const MLPrediction = () => {
       labels.push(s.energy);
     });
 
+    // Thêm dữ liệu tắt đèn
     for (let i = 0; i < 30; i++) {
       features.push([0, 0, 0.5 + Math.random() * 8]);
       labels.push(0);
@@ -602,39 +606,51 @@ const MLPrediction = () => {
     };
   };
 
-  // Train AI chỉ 1 lần
+  // Huấn luyện mô hình chỉ 1 lần
   useEffect(() => {
     let isMounted = true;
+
     const trainModel = async () => {
       if (!isMounted || hasInitialTrain.current) return;
       setLoading(true);
       const data = prepareData();
+
       try {
         if (modelRef.current) {
           modelRef.current.dispose();
-          modelRef.current = null;
         }
-        const mlModel = tf.sequential();
-        mlModel.add(tf.layers.dense({ units: 32, activation: 'relu', inputShape: [3] }));
-        mlModel.add(tf.layers.dropout({ rate: 0.3 }));
-        mlModel.add(tf.layers.dense({ units: 16, activation: 'relu' }));
-        mlModel.add(tf.layers.dense({ units: 1, activation: 'linear' }));
-        mlModel.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
-        await mlModel.fit(data.features, data.labels, { epochs: 120, batchSize: 8, shuffle: true, verbose: 0 });
+
+        const model = tf.sequential();
+        model.add(tf.layers.dense({ units: 32, activation: 'relu', inputShape: [3] }));
+        model.add(tf.layers.dropout({ rate: 0.3 }));
+        model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
+        model.add(tf.layers.dense({ units: 1, activation: 'linear' }));
+
+        model.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
+
+        await model.fit(data.features, data.labels, {
+          epochs: 120,
+          batchSize: 8,
+          shuffle: true,
+          verbose: 0,
+        });
+
         data.features.dispose();
         data.labels.dispose();
+
         if (isMounted) {
-          modelRef.current = mlModel;
+          modelRef.current = model;
           hasInitialTrain.current = true;
         }
       } catch (err) {
-        console.error('Lỗi huấn luyện:', err);
-        if (isMounted) setErrorMsg('AI đang học. Sẽ chính xác hơn khi có dữ liệu thực tế.');
+        console.error('Lỗi huấn luyện mô hình:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
     };
+
     trainModel();
+
     return () => {
       isMounted = false;
       if (modelRef.current) {
@@ -644,8 +660,10 @@ const MLPrediction = () => {
     };
   }, []);
 
-  const predictHourlyConsumption = async (lamp: any) => {
+  // Dự báo tiêu thụ mỗi giờ cho 1 đèn
+  const predictHourlyConsumption = async (lamp) => {
     if (!modelRef.current || lamp.lamp_state === 'OFF') return 0;
+
     try {
       const input = tf.tensor2d([[(lamp.lamp_dim || 0) / 100.0, lamp.current_a || 0, 1.0]]);
       const predTensor = modelRef.current.predict(input);
@@ -658,31 +676,37 @@ const MLPrediction = () => {
     }
   };
 
+  // Cập nhật dự báo khi có thay đổi trạng thái đèn hoặc model sẵn sàng
   useEffect(() => {
     if (!modelRef.current || Object.keys(lightStates).length === 0) {
       setPredictions({});
       return;
     }
-    const update = async () => {
-      const preds: { [key: string]: number } = {};
+
+    const updatePredictions = async () => {
+      const newPreds = {};
       for (const [nodeId, lamp] of Object.entries(lightStates)) {
-        preds[nodeId] = await predictHourlyConsumption(lamp as any);
+        newPreds[nodeId] = await predictHourlyConsumption(lamp);
       }
-      setPredictions(preds);
+      setPredictions(newPreds);
     };
-    update();
+
+    updatePredictions();
   }, [modelRef.current, lightStates]);
 
-  const getTotalPrediction = () => Object.values(predictions).reduce((sum, v) => sum + (v || 0), 0).toFixed(3);
+  const getTotalPrediction = () => {
+    return Object.values(predictions).reduce((sum, v) => sum + (v || 0), 0).toFixed(3);
+  };
 
   const getLampContext = () => {
     const onCount = Object.values(lightStates).filter(l => l.lamp_state === 'ON').length;
     const totalCount = Object.keys(lightStates).length;
+
     return {
       total: totalCount,
       on: onCount,
       isAllOff: onCount === 0,
-      lamps: Object.entries(lightStates).map(([nodeId, l]: [string, any]) => ({
+      lamps: Object.entries(lightStates).map(([nodeId, l]) => ({
         id: nodeId,
         state: l.lamp_state,
         brightness: l.lamp_dim || 0,
@@ -695,41 +719,50 @@ const MLPrediction = () => {
     };
   };
 
-  const generateSmartResponse = (question: string, context: any) => {
+  // Chatbot thông minh
+  const generateSmartResponse = (question, context) => {
     const q = question.toLowerCase().trim();
+
     if (q.match(/tiền|chi phí|điện|bao nhiêu tiền|tốn/i)) {
-      if (context.isAllOff) {
-        return `🎉 Tuyệt vời! Tất cả đèn đang tắt → **0 VNĐ/giờ**`;
-      }
-      return `💡 Chi phí hiện tại:\n• **${context.costPerHour.toLocaleString()} VNĐ/giờ**\n• Nếu chạy cả ngày: **${context.costPerDay.toLocaleString()} VNĐ**`;
+      if (context.isAllOff) return `Tuyệt vời! Tất cả đèn đang tắt → **0 VNĐ/giờ**`;
+      return `Chi phí hiện tại:\n• **${context.costPerHour.toLocaleString()} VNĐ/giờ**\n• Cả ngày: **${context.costPerDay.toLocaleString()} VNĐ**`;
     }
+
     if (q.includes('đèn') && q.includes('bao nhiêu')) {
-      if (context.isAllOff) return `Hiện tại **không có đèn nào bật** 😊`;
-      return `🔆 Có **${context.on}/${context.total}** đèn đang bật`;
+      if (context.isAllOff) return `Hiện tại **không có đèn nào bật** `;
+      return `Có **${context.on}/${context.total}** đèn đang bật`;
     }
+
     if (q.match(/tiết kiệm|gợi ý|giảm/i)) {
-      const high = context.lamps.filter((l: any) => parseFloat(l.prediction) > 0.012 && l.state === 'ON');
-      if (high.length === 0) return `👍 Hệ thống đang rất tiết kiệm rồi!`;
-      return `💰 Gợi ý tiết kiệm:\n${high.map((l: any) => `• Đèn ${l.id}: giảm xuống 70% → tiết kiệm ~${Math.round(l.costPerHour * 0.3).toLocaleString()} VNĐ/giờ`).join('\n')}`;
+      const high = context.lamps.filter(l => parseFloat(l.prediction) > 0.012 && l.state === 'ON');
+      if (high.length === 0) return `Hệ thống đang rất tiết kiệm rồi!`;
+      return `Gợi ý tiết kiệm:\n${high.map(l => `• Đèn ${l.id}: giảm xuống 70% → tiết kiệm ~${Math.round(l.costPerHour * 0.3).toLocaleString()} VNĐ/giờ`).join('\n')}`;
     }
+
     if (q.match(/đèn\s*\d+/i)) {
-      const id = q.match(/\d+/)![0];
-      const lamp = context.lamps.find((l: any) => l.id === id);
+      const match = q.match(/\d+/);
+      if (!match) return 'Không hiểu số đèn';
+      const id = match[0];
+      const lamp = context.lamps.find(l => l.id === id);
       if (!lamp) return `Không tìm thấy Đèn ${id}`;
       if (lamp.state === 'OFF') return `Đèn ${id} đang tắt → 0 VNĐ`;
-      return `💡 Đèn ${id}:\n• Độ sáng: ${lamp.brightness}%\n• Dự báo: ${lamp.prediction} kWh/h\n• Tiền/giờ: **${lamp.costPerHour.toLocaleString()} VNĐ**`;
+      return `Đèn ${id}:\n• Độ sáng: ${lamp.brightness}%\n• Dự báo: ${lamp.prediction} kWh/h\n• Tiền/giờ: **${lamp.costPerHour.toLocaleString()} VNĐ**`;
     }
-    return `Chào bạn! Tôi giúp bạn tiết kiệm điện 💰\n\nHỏi tôi:\n• "Tiền điện hiện tại?"\n• "Có bao nhiêu đèn bật?"\n• "Gợi ý tiết kiệm"\n• "Đèn 1 tốn bao nhiêu?"`;
+
+    return `Chào bạn! Tôi là AI giúp tiết kiệm điện \n\nBạn có thể hỏi:\n• "Tiền điện bao nhiêu?"\n• "Có bao nhiêu đèn bật?"\n• "Gợi ý tiết kiệm"\n• "Đèn 1 tốn bao nhiêu?"`;
   };
 
   const sendMessage = async () => {
     if (!input.trim() || chatLoading) return;
+
     const userMsg = { role: 'user', content: input, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setChatLoading(true);
+
     const context = getLampContext();
     const response = generateSmartResponse(input, context);
+
     setTimeout(() => {
       setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: new Date() }]);
       setChatLoading(false);
@@ -744,20 +777,20 @@ const MLPrediction = () => {
     if (chatOpen && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: 'Xin chào! 👋\nTôi là AI giúp bạn tiết kiệm tiền điện.\n\nHỏi tôi về chi phí, số đèn bật, hoặc gợi ý tiết kiệm nhé!',
+        content: 'Xin chào! \nTôi là AI giúp bạn tiết kiệm tiền điện.\n\nHỏi tôi về chi phí, số đèn bật hoặc gợi ý tiết kiệm nhé!',
         timestamp: new Date()
       }]);
     }
   }, [chatOpen]);
 
-  // Các màu động từ theme (giống Dashboard)
-  const bgPrimary = getColor(colors, "primary.500", "#0f121a");     // nền chính
-  const bgCard = getColor(colors, "primary.400", "#1e2538");        // card nền
-  const bgDeep = getColor(colors, "primary.600", "#151a27");        // nền sâu hơn (dùng cho box dự báo)
-  const textPrimary = getColor(colors, "grey.100", "#e0e0e0");
-  const textSecondary = getColor(colors, "grey.500", "#b0b0b0");
-  const accent = getColor(colors, "secondary.400", "#6870fa");
-  const success = "#4caf50";
+  // Màu từ theme
+  const bgPrimary = getColor(colors, 'primary.500', '#0f121a');
+  const bgCard = getColor(colors, 'primary.400', '#1e2538');
+  const bgDeep = getColor(colors, 'primary.600', '#151a27');
+  const textPrimary = getColor(colors, 'grey.100', '#e0e0e0');
+  const textSecondary = getColor(colors, 'grey.500', '#b0b0b0');
+  const accent = getColor(colors, 'secondary.400', '#6870fa');
+  const success = '#4caf50';
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, bgcolor: bgPrimary, minHeight: '100vh' }}>
@@ -820,10 +853,11 @@ const MLPrediction = () => {
 
       {/* Danh sách đèn */}
       <Grid container spacing={1.5}>
-        {Object.entries(lightStates || {}).map(([nodeId, lamp]: [string, any]) => {
+        {Object.entries(lightStates || {}).map(([nodeId, lamp]) => {
           const prediction = predictions[nodeId];
           const isOn = lamp.lamp_state === 'ON';
           const costPerHour = prediction !== undefined ? Math.round(prediction * ELECTRICITY_PRICE) : 0;
+
           return (
             <Grid item xs={6} sm={4} md={3} key={nodeId}>
               <Card sx={{
@@ -837,13 +871,13 @@ const MLPrediction = () => {
                     <Typography variant="subtitle1" fontWeight="bold" color={textPrimary}>
                       Đèn {nodeId}
                     </Typography>
-                    <Chip label={isOn ? 'BẬT' : 'TẮT'} size="small" sx={{
-                      bgcolor: isOn ? success : '#666',
-                      color: '#fff',
-                      fontSize: '0.7rem',
-                      height: 20
-                    }} />
+                    <Chip
+                      label={isOn ? 'BẬT' : 'TẮT'}
+                      size="small"
+                      sx={{ bgcolor: isOn ? success : '#666', color: '#fff', fontSize: '0.7rem', height: 20 }}
+                    />
                   </Box>
+
                   <LinearProgress
                     variant="determinate"
                     value={lamp.lamp_dim || 0}
@@ -855,9 +889,11 @@ const MLPrediction = () => {
                       '& .MuiLinearProgress-bar': { bgcolor: isOn ? success : '#666' }
                     }}
                   />
+
                   <Typography variant="caption" color={textSecondary} display="block" mb={1}>
                     {lamp.lamp_dim || 0}%
                   </Typography>
+
                   <Box sx={{ bgcolor: bgDeep, borderRadius: 1.5, p: 1.5, textAlign: 'center' }}>
                     <Typography variant="caption" color={textSecondary} display="block">
                       Dự báo
@@ -876,48 +912,109 @@ const MLPrediction = () => {
         })}
       </Grid>
 
-      {/* Chatbot */}
-      <Fab color="primary" onClick={() => setChatOpen(true)} sx={{ position: 'fixed', bottom: 16, right: 16, bgcolor: accent }}>
+      {/* Nút mở Chatbot */}
+      <Fab
+        color="primary"
+        onClick={() => setChatOpen(true)}
+        sx={{ position: 'fixed', bottom: 16, right: 16, bgcolor: accent }}
+      >
         <Badge badgeContent={messages.length > 1 ? messages.length - 1 : 0} color="error">
           <SmartToyIcon />
         </Badge>
       </Fab>
 
-      <Drawer anchor="right" open={chatOpen} onClose={() => setChatOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 380 }, bgcolor: bgCard } }}>
+      {/* Drawer Chatbot */}
+      <Drawer
+        anchor="right"
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 380 }, bgcolor: bgCard } }}
+      >
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ p: 2, bgcolor: bgDeep, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box display="flex" alignItems="center" gap={1}>
               <SmartToyIcon sx={{ color: accent }} />
-              <Typography variant="h6" color={textPrimary} fontWeight="bold">AI Tiết Kiệm Điện</Typography>
+              <Typography variant="h6" color={textPrimary} fontWeight="bold">
+                AI Tiết Kiệm Điện
+              </Typography>
             </Box>
-            <IconButton onClick={() => setChatOpen(false)}><CloseIcon sx={{ color: textPrimary }} /></IconButton>
+            <IconButton onClick={() => setChatOpen(false)}>
+              <CloseIcon sx={{ color: textPrimary }} />
+            </IconButton>
           </Box>
+
           <Divider sx={{ bgcolor: '#2a3142' }} />
+
           <Box sx={{ flex: 1, overflowY: 'auto', p: 2, bgcolor: bgPrimary }}>
             {messages.map((msg, i) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', mb: 2 }}>
-                <Box sx={{ maxWidth: '85%', display: 'flex', gap: 1, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
-                  <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: msg.role === 'user' ? accent : success, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {msg.role === 'user' ? <PersonIcon sx={{ fontSize: 18, color: '#fff' }} /> : <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />}
+              <Box
+                key={i}
+                sx={{
+                  display: 'flex',
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  mb: 2,
+                }}
+              >
+                <Box
+                  sx={{
+                    maxWidth: '85%',
+                    display: 'flex',
+                    gap: 1,
+                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      bgcolor: msg.role === 'user' ? accent : success,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {msg.role === 'user' ? (
+                      <PersonIcon sx={{ fontSize: 18, color: '#fff' }} />
+                    ) : (
+                      <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />
+                    )}
                   </Box>
                   <Paper elevation={2} sx={{ p: 1.5, bgcolor: msg.role === 'user' ? accent : '#2a3142', borderRadius: 2 }}>
-                    <Typography variant="body2" sx={{ color: textPrimary, whiteSpace: 'pre-wrap' }}>{msg.content}</Typography>
+                    <Typography variant="body2" sx={{ color: textPrimary, whiteSpace: 'pre-wrap' }}>
+                      {msg.content}
+                    </Typography>
                   </Paper>
                 </Box>
               </Box>
             ))}
+
             {chatLoading && (
               <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: success, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    bgcolor: success,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />
                 </Box>
                 <Paper elevation={2} sx={{ p: 1.5, bgcolor: '#2a3142', borderRadius: 2 }}>
-                  <Typography variant="body2" color={textPrimary}>Đang suy nghĩ...</Typography>
+                  <Typography variant="body2" color={textPrimary}>
+                    Đang suy nghĩ...
+                  </Typography>
                 </Paper>
               </Box>
             )}
+
             <div ref={messagesEndRef} />
           </Box>
+
           <Box sx={{ p: 2, bgcolor: bgDeep, borderTop: '1px solid #2a3142' }}>
             <Box display="flex" gap={1}>
               <TextField
@@ -932,11 +1029,15 @@ const MLPrediction = () => {
                   '& .MuiOutlinedInput-root': {
                     color: textPrimary,
                     bgcolor: bgPrimary,
-                    '& fieldset': { borderColor: '#444' }
-                  }
+                    '& fieldset': { borderColor: '#444' },
+                  },
                 }}
               />
-              <IconButton onClick={sendMessage} disabled={!input.trim() || chatLoading} sx={{ bgcolor: accent, '&:hover': { bgcolor: '#5a5fd4' } }}>
+              <IconButton
+                onClick={sendMessage}
+                disabled={!input.trim() || chatLoading}
+                sx={{ bgcolor: accent, '&:hover': { bgcolor: '#5a5fd4' } }}
+              >
                 <SendIcon sx={{ color: '#fff' }} />
               </IconButton>
             </Box>
