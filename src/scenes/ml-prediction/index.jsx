@@ -981,7 +981,16 @@ const MLPrediction = () => {
                       <SmartToyIcon sx={{ fontSize: 18, color: '#fff' }} />
                     )}
                   </Box>
-                  <Paper elevation={2} sx={{ p: 1.5, bgcolor: msg.role === 'user' ? accent : '#2a3142', borderRadius: 2 }}>
+                  <Paper 
+                    elevation={2} 
+                    sx={{ 
+                      p: 1.5, 
+                      bgcolor: msg.role === 'user' 
+                        ? accent 
+                        : (mode === 'night' ? '#e0e7ff' : '#2a3142'),  // night: tím nhạt đẹp, dark: giữ cũ
+                      borderRadius: 2 
+                    }}
+                  >
                     <Typography variant="body2" sx={{ color: textPrimary, whiteSpace: 'pre-wrap' }}>
                       {msg.content}
                     </Typography>
